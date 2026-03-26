@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// GoogleGenerativeAI loaded lazily inside callGemini
 
 const PORT = process.env.PORT || 3001;
 
