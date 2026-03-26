@@ -4,9 +4,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const PORT = process.env.PORT || 3001;
-const __dirname_server = path.dirname(require.resolve('./interaction-server.cjs') || process.argv[1]);
+
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(PUBLIC_DIR, 'data');
 const KB_FILE = path.join(__dirname, 'src', 'data', 'knowledgeBase.md');
