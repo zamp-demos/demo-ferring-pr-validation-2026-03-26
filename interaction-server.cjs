@@ -274,3 +274,161 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Feedback queue ---
+    if (cleanPath === '/api/feedback/queue') {
+        if (req.method === 'GET') {
+            let queue = [];
+            try { queue = JSON.parse(fs.readFileSync(FEEDBACK_QUEUE_PATH, 'utf8')); } catch(e) {}
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ queue }));
+            return;
+        }
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', d => body += d);
+            req.on('end', () => {
+                try {
+                    const item = JSON.parse(body);
+                    let queue = [];
+                    try { queue = JSON.parse(fs.readFileSync(FEEDBACK_QUEUE_PATH, 'utf8')); } catch(e) {}
+                    queue.push({ ...item, status: 'pending', timestamp: new Date().toISOString() });
+                    fs.writeFileSync(FEEDBACK_QUEUE_PATH, JSON.stringify(queue, null, 4));
+                } catch(e) {}
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            });
+            return;
+        }
+    }
+
+    // --- Feedback queue delete ---
+    if (cleanPath.startsWith('/api/feedback/queue/') && req.method === 'DELETE') {
+        const id = cleanPath.split('/').pop();
+        try {
+            let queue = JSON.parse(fs.readFileSync(FEEDBACK_QUEUE_PATH, 'utf8'));
+            queue = queue.filter(item => item.id !== id);
+            fs.writeFileSync(FEEDBACK_QUEUE_PATH, JSON.stringify(queue, null, 4));
+        } catch(e) {}
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+        return;
+    }
+
+    // --- Feedback apply ---
+    if (cleanPath === '/api/feedback/apply' && req.method === 'POST') {
+        let body = '';
+        req.on('data', d => body += d);
+        req.on('end', async () => {
+            try {
+                const { feedbackId } = JSON.parse(body);
+                let queue = JSON.parse(fs.readFileSync(FEEDBACK_QUEUE_PATH, 'utf8'));
+                const item = queue.find(i => i.id === feedbackId);
+                if (!item) throw new Error('Feedback not found');
+
+                const currentKB = fs.readFileSync(KB_FILE, 'utf8');
+                const prevFile = `snapshot_prev_${Date.now()}.md`;
+                fs.writeFileSync(path.join(SNAPSHOTS_DIR, prevFile), currentKB);
+
+                const systemPrompt = `You are an expert editor. Apply this change to the knowledge base and return the COMPLETE updated content. Change: "${item.summary}"`;
+                const updatedKB = await callGemini([{ role: 'user', content: `Current KB:\n${currentKB}\n\nApply this change: ${item.summary}` }], systemPrompt);
+
+                fs.writeFileSync(KB_FILE, updatedKB);
+                const newFile = `snapshot_${Date.now()}.md`;
+                fs.writeFileSync(path.join(SNAPSHOTS_DIR, newFile), updatedKB);
+
+                let versions = [];
+                try { versions = JSON.parse(fs.readFileSync(KB_VERSIONS_PATH, 'utf8')); } catch(e) {}
+                versions.push({ id: Date.now().toString(), timestamp: new Date().toISOString(), snapshotFile: newFile, previousFile: prevFile, changes: [item.summary] });
+                fs.writeFileSync(KB_VERSIONS_PATH, JSON.stringify(versions, null, 4));
+
+                queue = queue.filter(i => i.id !== feedbackId);
+                fs.writeFileSync(FEEDBACK_QUEUE_PATH, JSON.stringify(queue, null, 4));
+
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, content: updatedKB }));
+            } catch(e) {
+                res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // --- KB content ---
+    if (cleanPath === '/api/kb/content' && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const versionId = url.searchParams.get('versionId');
+        try {
+            let content;
+            if (versionId) {
+                const versions = JSON.parse(fs.readFileSync(KB_VERSIONS_PATH, 'utf8'));
+                const version = versions.find(v => v.id === versionId);
+                if (version) content = fs.readFileSync(path.join(SNAPSHOTS_DIR, version.snapshotFile), 'utf8');
+                else content = fs.readFileSync(KB_FILE, 'utf8');
+            } else {
+                content = fs.readFileSync(KB_FILE, 'utf8');
+            }
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ content }));
+        } catch(e) {
+            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ content: '' }));
+        }
+        return;
+    }
+
+    // --- KB versions ---
+    if (cleanPath === '/api/kb/versions' && req.method === 'GET') {
+        let versions = [];
+        try { versions = JSON.parse(fs.readFileSync(KB_VERSIONS_PATH, 'utf8')); } catch(e) {}
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ versions }));
+        return;
+    }
+
+    // --- KB snapshots ---
+    if (cleanPath.startsWith('/api/kb/snapshot/') && req.method === 'GET') {
+        const filename = cleanPath.split('/').pop();
+        try {
+            const content = fs.readFileSync(path.join(SNAPSHOTS_DIR, filename), 'utf8');
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'text/markdown' });
+            res.end(content);
+        } catch(e) {
+            res.writeHead(404, corsHeaders);
+            res.end('Not found');
+        }
+        return;
+    }
+
+    // --- KB update ---
+    if (cleanPath === '/api/kb/update' && req.method === 'POST') {
+        let body = '';
+        req.on('data', d => body += d);
+        req.on('end', () => {
+            try {
+                const { content } = JSON.parse(body);
+                fs.writeFileSync(KB_FILE, content);
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch(e) {
+                res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error' }));
+            }
+        });
+        return;
+    }
+
+    // --- Debug ---
+    if (cleanPath === '/debug-paths') {
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ dataDir: DATA_DIR, exists: fs.existsSync(DATA_DIR), files: fs.existsSync(DATA_DIR) ? fs.readdirSync(DATA_DIR) : [] }));
+        return;
+    }
+
+    // --- Static files ---
+    serveStatic(req, res, cleanPath);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Ferring PR Validation server running on port ${PORT}`);
+});
