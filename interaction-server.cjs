@@ -19,7 +19,7 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type'
 };
 
-let state = { sent: false, confirmed: false, signals: {} };
+let state = { sent: false, hitl: {}, confirmed: false, signals: {} };
 let runningProcesses = new Map();
 
 // Initialize files on startup
@@ -66,7 +66,7 @@ const server = http.createServer(async (req, res) => {
 
     // ── RESET ─────────────────────────────────────────────────────────────────
     if (cleanPath === '/reset') {
-        state = { sent: false, confirmed: false, signals: {} };
+        state = { sent: false, hitl: {}, confirmed: false, signals: {} };
         console.log('Demo Reset Triggered');
 
         const signalFile = path.join(__dirname, 'interaction-signals.json');
@@ -130,6 +130,43 @@ const server = http.createServer(async (req, res) => {
 
         res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok' }));
+        return;
+    }
+
+
+    // ── PER-PROCESS HITL ─────────────────────────────────────────────────────────
+    if (cleanPath.startsWith('/hitl/')) {
+        const processId = cleanPath.replace('/hitl/', '').split('?')[0];
+        if (!processId) {
+            res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'processId required' }));
+            return;
+        }
+        if (req.method === 'GET') {
+            const hitlState = state.hitl[processId] || { pending: false, action: null };
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ pending: hitlState.pending || false, action: hitlState.action || null }));
+            return;
+        }
+        if (req.method === 'POST') {
+            let body = '';
+            req.on('data', d => body += d);
+            req.on('end', () => {
+                try {
+                    const p = JSON.parse(body);
+                    state.hitl[processId] = {
+                        pending: p.pending !== undefined ? p.pending : (p.action ? false : true),
+                        action: p.action !== undefined ? p.action : null
+                    };
+                    console.log(`HITL [${processId}] updated:`, state.hitl[processId]);
+                } catch(e) { console.error('HITL parse error:', e); }
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok', processId, state: state.hitl[processId] }));
+            });
+            return;
+        }
+        res.writeHead(405, corsHeaders);
+        res.end('Method Not Allowed');
         return;
     }
 

@@ -363,11 +363,13 @@ const DatasetViewer = ({ artifact, onClose }) => {
 };
 
 
-const EmailDraftViewer = ({ artifact, onClose }) => {
+const EmailDraftViewer = ({ artifact, onClose, processId }) => {
     const { to, from, cc, bcc, subject, body, isIncoming, isSent } = artifact.data || {};
     const isReadOnly = isIncoming || isSent;
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
+
+    const [rejecting, setRejecting] = useState(false);
 
     const handleSend = async () => {
         setSending(true);
@@ -381,10 +383,18 @@ const EmailDraftViewer = ({ artifact, onClose }) => {
                 return;
             }
 
-            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/email-status`, {
+            // Use per-process HITL endpoint if processId is available
+            const hitlEndpoint = processId
+                ? `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/hitl/${processId}`
+                : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/email-status`;
+            const hitlBody = processId
+                ? JSON.stringify({ action: 'send' })
+                : JSON.stringify({ sent: true });
+
+            await fetch(hitlEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sent: true })
+                body: hitlBody
             });
             // Simulate delay for "visual" confirmation
             await new Promise(r => setTimeout(r, 1000));
@@ -395,6 +405,29 @@ const EmailDraftViewer = ({ artifact, onClose }) => {
         } catch (e) {
             console.error("Failed to send signal", e);
             setSending(false);
+        }
+    };
+
+    const handleReject = async () => {
+        setRejecting(true);
+        try {
+            const hitlEndpoint = processId
+                ? `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/hitl/${processId}`
+                : `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/email-status`;
+            const hitlBody = processId
+                ? JSON.stringify({ action: 'reject' })
+                : JSON.stringify({ sent: false });
+
+            await fetch(hitlEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: hitlBody
+            });
+            await new Promise(r => setTimeout(r, 500));
+            onClose();
+        } catch (e) {
+            console.error("Failed to send reject signal", e);
+            setRejecting(false);
         }
     };
 
@@ -504,13 +537,22 @@ const EmailDraftViewer = ({ artifact, onClose }) => {
                     </div>
 
                     <div className="flex items-center justify-between">
-                        <button
-                            onClick={handleSend}
-                            disabled={sending}
-                            className="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSend}
+                                disabled={sending || rejecting}
+                                className="px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
+                            </button>
+                            <button
+                                onClick={handleReject}
+                                disabled={sending || rejecting}
+                                className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {rejecting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
+                            </button>
+                        </div>
                         <button className="p-2 hover:bg-gray-100 rounded text-gray-400 hover:text-red-500 transition-colors">
                             <Trash2 className="w-5 h-5" />
                         </button>
@@ -1371,7 +1413,7 @@ const ProcessDetails = () => {
                         )}
 
                         {selectedArtifact.type === 'email_draft' && (
-                            <EmailDraftViewer artifact={selectedArtifact} onClose={closeArtifactPanel} />
+                            <EmailDraftViewer artifact={selectedArtifact} onClose={closeArtifactPanel} processId={id} />
                         )}
 
                         {selectedArtifact.type === 'decision' && (

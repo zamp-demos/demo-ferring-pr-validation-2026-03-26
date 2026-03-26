@@ -246,22 +246,35 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 "title_p": "Approving PR in SAP Ariba...",
                 "title_s": "PR-2026-00847 approved in SAP Ariba - comment posted",
                 "reasoning": [
-                        "Status updated to Approved via SAP Ariba API",
-                        "Validation reasoning posted as approval comment",
-                        "No email required for PASS status",
+                        "Desktop agent returned to SAP Ariba PR-2026-00847",
+                        "Selected 'Approve' action from approver actions menu",
+                        "Posted approval comment: 'All 14 validation checks passed (100%). Quotation CHF 12,450.00 matches PR. Supplier Sigma-Aldrich (Merck) verified at 99% confidence.'",
+                        "Status changed: Pending Approval → Approved",
+                        "Approval confirmation received (200 OK)",
+                        "No email required for full PASS status",
                         "Processing time: 38 seconds"
                 ],
                 "artifacts": [
                         {
+                                "id": "v-ariba-approve-1",
+                                "type": "video",
+                                "label": "Desktop Agent: SAP Ariba Approval",
+                                "videoPath": "/data/sap_ariba_login_fpr001.webm"
+                        },
+                        {
                                 "id": "ariba-confirm-1",
                                 "type": "json",
-                                "label": "SAP Ariba Confirmation",
+                                "label": "SAP Ariba Approval Confirmation",
                                 "data": {
                                         "action": "APPROVED",
                                         "pr_id": "PR-2026-00847",
+                                        "status_before": "Pending Approval",
+                                        "status_after": "Approved",
+                                        "approval_comment": "All 14 validation checks passed (100%). PR-2026-00847 auto-approved by Pace. Quotation total CHF 12,450.00 matches PR. Supplier Sigma-Aldrich (Merck) verified.",
                                         "timestamp": "2026-03-26T10:15:42Z",
                                         "comment_posted": true,
-                                        "api_response": "200 OK"
+                                        "api_response": "200 OK",
+                                        "approved_by": "Pace Automation Agent"
                                 }
                         }
                 ]
