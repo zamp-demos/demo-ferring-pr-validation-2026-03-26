@@ -25,17 +25,26 @@ let state = { sent: false, confirmed: false, signals: {} };
 const runningProcesses = new Map();
 
 // Startup initialization
-if (!fs.existsSync(path.join(DATA_DIR, 'processes.json'))) {
-    const base = path.join(DATA_DIR, 'base_processes.json');
-    if (fs.existsSync(base)) fs.copyFileSync(base, path.join(DATA_DIR, 'processes.json'));
-}
+try {
+    if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(SNAPSHOTS_DIR)) fs.mkdirSync(SNAPSHOTS_DIR, { recursive: true });
+    const srcDataDir = path.join(__dirname, 'src', 'data');
+    if (!fs.existsSync(srcDataDir)) fs.mkdirSync(srcDataDir, { recursive: true });
+    if (!fs.existsSync(path.join(DATA_DIR, 'processes.json'))) {
+        const base = path.join(DATA_DIR, 'base_processes.json');
+        if (fs.existsSync(base)) fs.copyFileSync(base, path.join(DATA_DIR, 'processes.json'));
+        else fs.writeFileSync(path.join(DATA_DIR, 'processes.json'), '[]');
+    }
+    const signalFile = path.join(__dirname, 'interaction-signals.json');
+    if (!fs.existsSync(signalFile)) {
+        fs.writeFileSync(signalFile, JSON.stringify({ APPROVE_MANUAL_REVIEW: false, APPROVE_EXCEPTION: false }, null, 4));
+    }
+    if (!fs.existsSync(FEEDBACK_QUEUE_PATH)) fs.writeFileSync(FEEDBACK_QUEUE_PATH, '[]');
+    if (!fs.existsSync(KB_VERSIONS_PATH)) fs.writeFileSync(KB_VERSIONS_PATH, '[]');
+    if (!fs.existsSync(KB_FILE)) fs.writeFileSync(KB_FILE, '# Ferring PR Validation Knowledge Base\n');
+} catch(e) { console.error('Startup init error:', e.message); }
 const signalFile = path.join(__dirname, 'interaction-signals.json');
-if (!fs.existsSync(signalFile)) {
-    fs.writeFileSync(signalFile, JSON.stringify({ APPROVE_MANUAL_REVIEW: false, APPROVE_EXCEPTION: false }, null, 4));
-}
-if (!fs.existsSync(FEEDBACK_QUEUE_PATH)) fs.writeFileSync(FEEDBACK_QUEUE_PATH, '[]');
-if (!fs.existsSync(KB_VERSIONS_PATH)) fs.writeFileSync(KB_VERSIONS_PATH, '[]');
-if (!fs.existsSync(SNAPSHOTS_DIR)) fs.mkdirSync(SNAPSHOTS_DIR, { recursive: true });
 
 const MIME_TYPES = {
     '.html': 'text/html', '.js': 'application/javascript', '.jsx': 'text/javascript',
