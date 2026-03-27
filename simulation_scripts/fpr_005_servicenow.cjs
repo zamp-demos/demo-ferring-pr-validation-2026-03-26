@@ -47,50 +47,51 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
 
     const steps = [
-        // STEP 1: ServiceNow ticket pickup
+        // STEP 1: SAP Ariba PR receipt
         {
             id: "step-1",
-            title_p: "Desktop agent connecting to ServiceNow...",
-            title_s: "ServiceNow ticket INC-2026-04891 picked up — PR-2026-01203 identified",
+            title_p: "Receiving PR-2026-01203 from vendor via SAP Ariba...",
+            title_s: "PR-2026-01203 received — Thermo Fisher Scientific, USD 67,850.00, US region",
             reasoning: [
-                "Agent logged into ServiceNow portal (ferring.service-now.com)",
-                "Navigated to My Assigned Tickets queue",
-                "Found ticket INC-2026-04891 — Priority: Medium",
-                "Read Category: Procurement / Purchase Requisition Approval",
-                "Read Description: 'PR-2026-01203 for Thermo Fisher Scientific laboratory equipment requires validation and approval — please process.'",
-                "Read Requested by: Jennifer Martinez (US Lab Operations)",
-                "Extracted PR reference: PR-2026-01203",
-                "Updated ticket status: New → In Progress"
+                "PR-2026-01203 received in SAP Ariba procurement queue",
+                "Vendor: Thermo Fisher Scientific (SUP-90312)",
+                "Requester: James Martinez (US Lab Operations)",
+                "Company Code: 4100 — Ferring Pharmaceuticals Inc.",
+                "Total Amount: USD 67,850.00",
+                "Region: US (Parsippany, NJ)",
+                "Priority: Normal — standard processing timeline",
+                "Initiating automated validation workflow"
             ],
             artifacts: [
                 {
-                    id: "v-snow-5",
+                    id: "v-ariba-5",
                     type: "video",
-                    label: "Desktop Agent: ServiceNow INC-2026-04891",
-                    videoPath: "/data/servicenow_ticket_fpr005.webm"
+                    label: "Desktop Agent: SAP Ariba PR-2026-01203",
+                    videoPath: "/data/sap_ariba_pr_fpr005.webm"
                 },
                 {
-                    id: "snow-ticket-5",
+                    id: "pr-receipt-5",
                     type: "json",
-                    label: "ServiceNow Ticket Data",
+                    label: "PR Receipt Data",
                     data: {
-                        ticket_id: "INC-2026-04891",
-                        category: "Procurement / PR Approval",
-                        pr_reference: "PR-2026-01203",
-                        priority: "Medium",
-                        requester: "Jennifer Martinez",
-                        description: "PR-2026-01203 for Thermo Fisher Scientific lab equipment requires validation and approval.",
-                        created: "2026-03-26T09:30:00Z",
-                        status: "In Progress"
+                        pr_id: "PR-2026-01203",
+                        supplier: "Thermo Fisher Scientific",
+                        supplier_id: "SUP-90312",
+                        requester: "James Martinez",
+                        amount: "USD 67,850.00",
+                        company_code: "4100",
+                        region: "US",
+                        received: "2026-03-26T09:30:00Z",
+                        status: "Pending Validation"
                     }
                 }
             ]
         },
-        // STEP 2: ServiceNow→SAP handoff — field-by-field reading (NEW)
+        // STEP 2: SAP Ariba — detailed field reading
         {
             id: "step-2",
-            title_p: "Reading ServiceNow ticket fields — mapping to SAP Ariba context...",
-            title_s: "Handoff complete — all ServiceNow fields mapped to SAP Ariba parameters",
+            title_p: "Reading all PR-2026-01203 fields in SAP Ariba...",
+            title_s: "All PR fields extracted — cross-referencing with vendor records",
             reasoning: [
                 "Read ticket field 'PR Number': PR-2026-01203 → SAP Ariba search key",
                 "Read ticket field 'Company Code': 4100 → entity: Ferring Pharmaceuticals Inc.",
@@ -325,15 +326,66 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 10: Audit trail
+        // STEP 10: Create ServiceNow ticket for vendor coordination
         {
             id: "step-10",
+            title_p: "Creating ServiceNow ticket for vendor coordination — Thermo Fisher Scientific...",
+            title_s: "ServiceNow ticket INC-2026-04891 created — Thermo Fisher Scientific, PR approval logged",
+            reasoning: [
+                "Logged into ServiceNow portal (ferring.service-now.com)",
+                "Created new ticket INC-2026-04891",
+                "Category: Procurement — Vendor Coordination",
+                "Short description: PR-2026-01203 approved — Thermo Fisher Scientific, USD 67,850. Tracking PO generation.",
+                "Assigned to: US Procurement Team",
+                "Priority: Medium",
+                "Link to SAP Ariba PR: PR-2026-01203"
+            ],
+            artifacts: [
+                {
+                    id: "v-snow-create-5",
+                    type: "video",
+                    label: "Desktop Agent: ServiceNow Ticket Creation",
+                    videoPath: "/data/servicenow_ticket_fpr005.webm"
+                },
+                {
+                    id: "snow-created-5",
+                    type: "json",
+                    label: "ServiceNow Ticket Created",
+                    data: {
+                        ticket_id: "INC-2026-04891",
+                        action: "CREATED",
+                        category: "Procurement — Vendor Coordination",
+                        description: "PR-2026-01203 approved for Thermo Fisher Scientific, USD 67,850. Tracking PO generation.",
+                        assigned_to: "US Procurement Team",
+                        priority: "Medium",
+                        timestamp: "2026-03-26T10:16:00Z"
+                    }
+                }
+            ]
+        },
+        // STEP 11: Update Ferring Supplier Master
+        {
+            id: "step-11",
+            title_p: "Updating Ferring Supplier Master — logging successful validation for Thermo Fisher...",
+            title_s: "Supplier Master updated — SUP-90312 (Thermo Fisher): PR-2026-01203 approved, clean validation",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record SUP-90312 (Thermo Fisher Scientific)",
+                "Added validation log: \"PR-2026-01203 — all 14 checks passed, auto-approved\"",
+                "Supplier compliance score: Updated (maintained A-rating)",
+                "ServiceNow reference: INC-2026-04891",
+                "Last successful validation: " + new Date().toISOString().split("T")[0]
+            ]
+        },
+        // STEP 12: Audit trail
+        {
+            id: "step-12",
             title_p: "Finalizing audit trail...",
-            title_s: "Process complete — PR-2026-01203 approved via ServiceNow→SAP Ariba flow",
+            title_s: "Process complete — PR-2026-01203 approved with full downstream updates",
             reasoning: [
                 "Processing duration: 48 seconds",
-                "Systems accessed: ServiceNow (INC-2026-04891), SAP Ariba (PR-2026-01203)",
-                "ServiceNow→SAP Ariba handoff: 6 fields cross-checked — all matched",
+                "Systems accessed: SAP Ariba (PR-2026-01203), ServiceNow (INC-2026-04891), Ferring Supplier Master (SUP-90312)",
+                "Downstream updates: ServiceNow ticket created, Supplier Master updated",
                 "Validations: 14 run, 14 passed",
                 "HITL gates: 0 — full auto-approve path",
                 "ServiceNow ticket: Resolved",

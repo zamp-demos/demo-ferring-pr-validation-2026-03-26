@@ -248,9 +248,22 @@ const waitForSignal = async (signalId) => {
                 "Overall status elevated to PASS — approval can proceed"
             ]
         },
-        // STEP 9: SAP Ariba approval
+        // STEP 9: Update Supplier Master with manual review log
         {
             id: "step-9",
+            title_p: "Updating Ferring Supplier Master — logging manual review for Catalent...",
+            title_s: "Supplier Master updated — SUP-61108 (Catalent): manual review initiated, EUR 185,000 flagged",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record SUP-61108 (Catalent Pharma Solutions)",
+                "Added review log: \"PR-2026-01045 escalated to senior procurement — amount EUR 185,000 exceeds auto-approval threshold\"",
+                "Review status: Pending Senior Decision",
+                "Senior reviewer notified: procurement-lead@ferring.com"
+            ]
+        },
+        // STEP 10: SAP Ariba approval
+        {
+            id: "step-10",
             title_p: "Approving PR in SAP Ariba...",
             title_s: "PR-2026-01045 approved in SAP Ariba — manual review notes posted",
             reasoning: [
@@ -280,7 +293,7 @@ const waitForSignal = async (signalId) => {
         },
         // STEP 10: Audit trail
         {
-            id: "step-10",
+            id: "step-11",
             title_p: "Finalizing audit trail...",
             title_s: "Process complete — PR-2026-01045 approved after manual review, full audit trail archived",
             reasoning: [

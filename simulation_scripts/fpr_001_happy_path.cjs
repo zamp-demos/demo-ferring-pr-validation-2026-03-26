@@ -317,9 +317,22 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 11: Audit trail
+        // STEP 11: Update Ferring Supplier Master
         {
             id: "step-11",
+            title_p: "Updating Ferring Supplier Master — confirming clean validation for Sigma-Aldrich...",
+            title_s: "Supplier Master updated — SUP-88421 (Sigma-Aldrich): validation complete, all checks passed",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record SUP-88421 (Sigma-Aldrich / Merck)",
+                "Added validation log: \"PR-2026-00847 — all checks passed, auto-approved\"",
+                "Supplier compliance score: Maintained (A-rating)",
+                "Last successful validation: " + new Date().toISOString().split("T")[0]
+            ]
+        },
+        // STEP 12: Audit trail
+        {
+            id: "step-12",
             title_p: "Finalizing and logging audit trail...",
             title_s: "Process complete — PR-2026-00847 auto-approved, audit trail archived",
             reasoning: [

@@ -386,9 +386,22 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 11: Re-validate updated invoice
+        // STEP 11: Update Supplier Master with vendor communication log
         {
             id: "step-11",
+            title_p: "Updating Ferring Supplier Master with vendor communication log...",
+            title_s: "Supplier Master updated — SUP-72103 (Bachem AG): correction request logged",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record SUP-72103 (Bachem AG)",
+                "Added communication log entry: \"Invoice correction requested — entity name mismatch (Bachem Holding AG vs Bachem AG) and pricing variance (+5.24%)\"",
+                "Set vendor communication status: Awaiting Response",
+                "Log timestamp: " + new Date().toISOString()
+            ]
+        },
+        // STEP 12: Re-validate updated invoice
+        {
+            id: "step-12",
             title_p: "Extracting data from updated invoice and re-validating...",
             title_s: "Updated invoice: Supplier name FIXED ✓ — Price STILL MISMATCHED ✗ (USD 48,200 vs USD 45,800)",
             reasoning: [
@@ -415,7 +428,7 @@ const waitForHITL = async () => {
         },
         // STEP 12: HITL GATE 2 — Final rejection email
         {
-            id: "step-12",
+            id: "step-13",
             hitl: "email",
             hitl_gate: 2,
             title_p: "Drafting final rejection email with specific pricing justification...",
@@ -443,9 +456,22 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 13: SAP Ariba rejection
+        // STEP 14: Update Supplier Master with rejection flag
         {
-            id: "step-13",
+            id: "step-14",
+            title_p: "Updating Ferring Supplier Master — flagging pricing review for SUP-72103...",
+            title_s: "Supplier Master updated — SUP-72103 flagged for pricing review, vendor notified",
+            reasoning: [
+                "Updated supplier record SUP-72103 (Bachem AG)",
+                "Added flag: Pricing Review Required",
+                "Added note: \"PR-2026-00912 rejected — unresolved pricing variance. Invoice USD 48,200 vs PR USD 45,800 (+5.24%). Supplier corrected entity name but pricing unchanged.\"",
+                "Flag visible to all procurement team members",
+                "Escalation path: Procurement Manager review required for next Bachem AG order"
+            ]
+        },
+        // STEP 15: SAP Ariba rejection
+        {
+            id: "step-15",
             title_p: "Desktop agent returning to SAP Ariba to reject PR-2026-00912...",
             title_s: "PR-2026-00912 status changed: Pending → Rejected in SAP Ariba",
             reasoning: [
@@ -482,7 +508,7 @@ const waitForHITL = async () => {
         },
         // STEP 14: Audit trail
         {
-            id: "step-14",
+            id: "step-16",
             title_p: "Generating complete audit trail...",
             title_s: "Process complete — PR-2026-00912 rejected with full audit trail",
             reasoning: [

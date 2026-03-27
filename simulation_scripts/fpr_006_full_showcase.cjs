@@ -76,26 +76,27 @@ const waitForHITL = async () => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
 
     const allSteps = [
-        // STEP 1: ServiceNow trigger
+        // STEP 1: SAP Ariba PR receipt
         {
             id: "step-1",
-            title_p: "ServiceNow ticket INC-2026-05102 received — initiating PR validation workflow...",
-            title_s: "Trigger received — ServiceNow INC-2026-05102 mapped to PR-2026-01567",
+            title_p: "Receiving PR-2026-01567 from vendor via SAP Ariba...",
+            title_s: "PR-2026-01567 received — Boehringer Ingelheim, EUR 2,780,000.00, US region",
             reasoning: [
-                "ServiceNow ticket INC-2026-05102 received at 08:45 UTC",
-                "Category: Procurement / Purchase Requisition Approval",
-                "Description: 'PR-2026-01567 — Boehringer Ingelheim CRO services renewal, EUR 2,780,000. Requires validation before SAP Ariba approval.'",
-                "Requested by: Sophie Beaumont (Global Procurement Lead)",
-                "Priority: High (MSA contract renewal, deadline: 2026-03-31)",
-                "Pace workflow triggered: PR Validation → FPR-006",
-                "Ticket INC-2026-05102 status set to: In Progress"
+                "PR-2026-01567 received in SAP Ariba procurement queue at 08:45 UTC",
+                "Vendor: Boehringer Ingelheim GmbH (SUP-45229)",
+                "Requester: Dr. Robert Kingsley (US R&D Operations)",
+                "Budget Owner: Sarah Whitfield (US Contract Management)",
+                "Company Code: 4100 — Ferring Pharmaceuticals Inc.",
+                "Total Amount: EUR 2,780,000.00 — HIGH VALUE flag triggered",
+                "Region: US/Canada",
+                "Initiating comprehensive validation workflow — FPR-006"
             ],
             artifacts: [
                 {
-                    id: "v-servicenow-6",
+                    id: "v-ariba-receipt-6",
                     type: "video",
-                    label: "ServiceNow: Ticket INC-2026-05102",
-                    videoPath: "/data/servicenow_fpr006.webm"
+                    label: "Desktop Agent: SAP Ariba PR-2026-01567 Receipt",
+                    videoPath: "/data/sap_ariba_desktop_agent_fpr006.webm"
                 },
                 {
                     id: "snow-ticket-6",
@@ -387,9 +388,59 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 11: Vendor response
+        // STEP 11: Create ServiceNow ticket for vendor clarification (US/Canada flow)
         {
             id: "step-11",
+            title_p: "Creating ServiceNow ticket for Boehringer Ingelheim — MSA cap clarification...",
+            title_s: "ServiceNow ticket INC-2026-05102 created — MSA annual cap query raised with vendor",
+            reasoning: [
+                "Logged into ServiceNow portal (ferring.service-now.com)",
+                "Created ticket INC-2026-05102",
+                "Category: Procurement — Contract Compliance",
+                "Short description: PR-2026-01567 exceeds MSA-BI-2024-0047 annual cap (EUR 2,780,000 vs EUR 2,500,000). Vendor clarification required.",
+                "Assigned to: US Contract Management",
+                "Priority: High — Contract compliance issue",
+                "Linked to SAP Ariba PR: PR-2026-01567"
+            ],
+            artifacts: [
+                {
+                    id: "v-sn-create-6",
+                    type: "video",
+                    label: "Desktop Agent: ServiceNow Ticket Creation",
+                    videoPath: "/data/servicenow_fpr006.webm"
+                },
+                {
+                    id: "sn-created-6",
+                    type: "json",
+                    label: "ServiceNow Ticket Created",
+                    data: {
+                        ticket_id: "INC-2026-05102",
+                        action: "CREATED",
+                        category: "Contract Compliance",
+                        description: "PR-2026-01567 exceeds MSA annual cap. Vendor clarification required.",
+                        assigned_to: "US Contract Management",
+                        priority: "High",
+                        timestamp: new Date().toISOString()
+                    }
+                }
+            ]
+        },
+        // STEP 12: Update Supplier Master with investigation log
+        {
+            id: "step-12",
+            title_p: "Updating Ferring Supplier Master — logging MSA cap investigation for Boehringer...",
+            title_s: "Supplier Master updated — SUP-45229 (Boehringer): MSA cap investigation logged",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record SUP-45229 (Boehringer Ingelheim GmbH)",
+                "Added compliance log: \"MSA-BI-2024-0047 annual cap investigation — PR-2026-01567 exceeds EUR 2,500,000 limit by EUR 280,000 (11.2%)\"",
+                "Set vendor communication status: Clarification Requested via ServiceNow INC-2026-05102",
+                "Compliance flag: Under Review"
+            ]
+        },
+        // STEP 13: Vendor response
+        {
+            id: "step-13",
             title_p: "Monitoring inbox for Boehringer Ingelheim response...",
             title_s: "Vendor response received — Boehringer acknowledges cap issue, proposes MSA amendment",
             reasoning: [
@@ -418,7 +469,7 @@ const waitForHITL = async () => {
         },
         // STEP 12: Assess vendor response
         {
-            id: "step-12",
+            id: "step-14",
             title_p: "Assessing vendor response and MSA amendment proposal...",
             title_s: "Assessment complete — MSA amendment required before PR can be approved; PR must be rejected pending amendment",
             reasoning: [
@@ -446,7 +497,7 @@ const waitForHITL = async () => {
         },
         // STEP 13: HITL GATE 2 — Final rejection email
         {
-            id: "step-13",
+            id: "step-15",
             hitl: "email",
             hitl_gate: 2,
             title_p: "Drafting final PR rejection email — MSA amendment must be executed first...",
@@ -476,7 +527,7 @@ const waitForHITL = async () => {
         },
         // STEP 14: SAP Ariba rejection
         {
-            id: "step-14",
+            id: "step-16",
             title_p: "Desktop agent returning to SAP Ariba to reject PR-2026-01567...",
             title_s: "PR-2026-01567 status changed: Pending → Rejected in SAP Ariba",
             reasoning: [
@@ -511,9 +562,9 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 15: Resolve ServiceNow ticket
+        // STEP 17: Update ServiceNow ticket with rejection resolution
         {
-            id: "step-15",
+            id: "step-17",
             title_p: "Resolving ServiceNow ticket INC-2026-05102...",
             title_s: "ServiceNow INC-2026-05102 resolved — full resolution notes posted",
             reasoning: [
@@ -539,9 +590,22 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 16: Final audit trail
+        // STEP 18: Update Supplier Master with MSA cap compliance flag
         {
-            id: "step-16",
+            id: "step-18",
+            title_p: "Updating Ferring Supplier Master — flagging MSA compliance issue for Boehringer...",
+            title_s: "Supplier Master updated — SUP-45229 (Boehringer): MSA cap flag added, amendment pending",
+            reasoning: [
+                "Updated supplier record SUP-45229 (Boehringer Ingelheim GmbH)",
+                "Added compliance flag: MSA Annual Cap Exceeded",
+                "Added note: \"PR-2026-01567 rejected — EUR 2,780,000 exceeds MSA-BI-2024-0047 cap of EUR 2,500,000 by EUR 280,000 (11.2%). MSA Amendment No. 3 proposed by vendor, pending execution.\"",
+                "Contract status: Amendment Pending",
+                "ServiceNow reference: INC-2026-05102 — Resolved"
+            ]
+        },
+        // STEP 19: Final audit trail
+        {
+            id: "step-19",
             title_p: "Generating complete audit trail...",
             title_s: "Process complete — PR-2026-01567 rejected, ServiceNow closed, MSA amendment routed",
             reasoning: [

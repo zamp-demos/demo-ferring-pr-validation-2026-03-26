@@ -180,9 +180,23 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 6: Audit trail
+        // STEP 6: Update Supplier Master with missing attachment flag
         {
             id: "step-6",
+            title_p: "Updating Ferring Supplier Master — logging missing attachment alert for Lonza...",
+            title_s: "Supplier Master updated — Lonza Group AG: missing attachment flag added, follow-up scheduled",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Located supplier record for Lonza Group AG",
+                "Added process flag: Missing Supporting Documentation",
+                "Added note: \"PR-2026-01100 — CHF 340,000. No supporting documents found across 5 sources (Ariba attachments, email thread, shared inbox, PO history, vendor portal). Requester notified.\"",
+                "Follow-up date set: 3 business days",
+                "Alert sent to procurement team: missing-docs@ferring.com"
+            ]
+        },
+        // STEP 7: Audit trail
+        {
+            id: "step-7",
             title_p: "Logging audit trail — PR halted at validation step 1/14...",
             title_s: "Process halted — PR-2026-01100 requires attachment before validation can continue",
             reasoning: [
