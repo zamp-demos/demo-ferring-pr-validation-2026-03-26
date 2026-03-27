@@ -2,7 +2,7 @@
     {
         "id": "FPR_001",
         "category": "PR Validation",
-        "name": "FPR-001: Standard PR Auto-Approval",
+        "name": "FPR-001: Standard PR-to-PO Lifecycle",
         "stockId": "PR-2026-00847",
         "year": "2026-03-26",
         "status": "Ready",
@@ -17,7 +17,7 @@
     {
         "id": "FPR_002",
         "category": "PR Validation",
-        "name": "FPR-002: Supplier & Pricing Mismatch",
+        "name": "FPR-002: PR-to-PO with Procurement Approval",
         "stockId": "PR-2026-00912",
         "year": "2026-03-26",
         "status": "Ready",
@@ -32,7 +32,7 @@
     {
         "id": "FPR_003",
         "category": "PR Validation",
-        "name": "FPR-003: Manual Review Required",
+        "name": "FPR-003: High-Value RFP Required",
         "stockId": "PR-2026-01045",
         "year": "2026-03-26",
         "status": "Ready",
@@ -47,7 +47,7 @@
     {
         "id": "FPR_004",
         "category": "PR Validation",
-        "name": "FPR-004: No Attachments",
+        "name": "FPR-004: Missing Attachments",
         "stockId": "PR-2026-01100",
         "year": "2026-03-26",
         "status": "Ready",
@@ -62,7 +62,7 @@
     {
         "id": "FPR_005",
         "category": "PR Validation",
-        "name": "FPR-005: US ServiceNow Flow",
+        "name": "FPR-005: US ServiceNow PR-to-PO",
         "stockId": "PR-2026-01203",
         "year": "2026-03-26",
         "status": "Ready",
@@ -72,12 +72,12 @@
         "amount": "USD 67,850.00",
         "companyCode": "4100",
         "region": "US/Canada",
-        "documentType": "PO"
+        "documentType": "PO + Quotations"
     },
     {
         "id": "FPR_006",
         "category": "PR Validation",
-        "name": "FPR-006: Full Pace Showcase",
+        "name": "FPR-006: MSA Cap Exceedance",
         "stockId": "PR-2026-01567",
         "year": "2026-03-26",
         "status": "Ready",
