@@ -47,36 +47,41 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
 
     const steps = [
-        // STEP 1: SAP Ariba login
+        // STAGE 1: Regional Queue Management
         {
             id: "step-1",
-            title_p: "Desktop agent connecting to SAP Ariba...",
-            title_s: "Connected to SAP Ariba — authenticated successfully",
+            title_p: "Accessing SAP Ariba pending approvals queue...",
+            title_s: "SAP Ariba queue: 6 pending PRs found — selected PR-2026-00847 (FIFO)",
             reasoning: [
-                "Agent logged in as pace.agent@ferring.com",
-                "Session established with SAP Ariba production instance (SESS-2026-03-26-1015)",
-                "Authentication token valid for 8 hours",
-                "Navigating to pending approvals queue"
+                "Agent accessed SAP Ariba production instance as pace.agent@ferring.com",
+                "Queried pending approvals queue for Zamp.ai_test approval group",
+                "Found 6 pending PRs in queue (FIFO ordering applied)",
+                "PR-2026-00847 selected — oldest unprocessed PR, Sigma-Aldrich Chemie GmbH, CHF 12,450.00",
+                "Other PRs in queue: PR-2026-00851, PR-2026-00854, PR-2026-00861, PR-2026-00863, PR-2026-00869 (deferred)",
+                "Queue position recorded — processing PR-2026-00847 now"
             ],
             artifacts: [
                 {
-                    id: "v-ariba-1",
+                    id: "v-ariba-queue-1",
                     type: "video",
                     label: "Desktop Agent: SAP Ariba Login + PR-2026-00847",
                     videoPath: "/data/sap_ariba_login_fpr001.webm"
                 }
             ]
         },
-        // STEP 2: Retrieve PR
+        // STAGE 2: Authentication and PR Retrieval
         {
             id: "step-2",
-            title_p: "Retrieving pending Purchase Requisitions...",
-            title_s: "PR-2026-00847 retrieved from approval queue",
+            title_p: "Authenticating to SAP Ariba and retrieving PR details...",
+            title_s: "Connected to SAP Ariba — PR-2026-00847 opened, Sigma-Aldrich Chemie GmbH, CHF 12,450.00",
             reasoning: [
-                "Queried pending approvals for agent queue",
-                "Found 6 pending PRs — selected PR-2026-00847 (FIFO order)",
-                "Opened PR detail view",
-                "Reading header fields..."
+                "Authenticated as pace.agent@ferring.com — session token valid",
+                "Navigated to PR-2026-00847 detail view",
+                "Opened PR header: Company Code 1000, Ferring International Center SA",
+                "Requester: Elena Kowalski | Budget Owner: Dr. Marcus Weber | PO Owner: Elena Kowalski",
+                "Cost Center: CC-RD-4521 | Currency: CHF | Total Amount: CHF 12,450.00",
+                "Supplier: Sigma-Aldrich Chemie GmbH (SUP-88421) | Region: Switzerland (EMEA)",
+                "Line items count: 3 | PR status: Pending Approval"
             ],
             artifacts: [
                 {
@@ -101,47 +106,65 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 3: Extract line items
+        // STAGE 3: Data Extraction + Supplier Master Enrichment
         {
             id: "step-3",
-            title_p: "Extracting PR line items and supplier details...",
-            title_s: "3 line items extracted — CHF 12,450.00 total, Sigma-Aldrich Chemie GmbH",
+            title_p: "Extracting PR data — header fields, line items, and supplier enrichment...",
+            title_s: "3 line items extracted — CHF 12,450.00 total, supplier enriched via Supplier Master",
             reasoning: [
-                "Clicked 'Line Items' tab in PR detail view",
+                "Clicked 'Line Items' tab in PR-2026-00847 detail view",
                 "Line 1: Analytical Grade Reagents — 10 units × CHF 420.00 = CHF 4,200.00",
                 "Line 2: HPLC Columns (C18 250mm) — 5 units × CHF 1,150.00 = CHF 5,750.00",
                 "Line 3: Lab Consumables Kit — 5 units × CHF 500.00 = CHF 2,500.00",
-                "Sum: CHF 4,200 + CHF 5,750 + CHF 2,500 = CHF 12,450.00 — matches PR total ✓",
-                "All lines reference Material Group: MG-LAB-001"
+                "Sum check: CHF 4,200 + CHF 5,750 + CHF 2,500 = CHF 12,450.00 — matches PR header total ✓",
+                "All 3 lines reference Material Group: MG-LAB-001",
+                "--- Supplier Master Enrichment ---",
+                "Looked up SUP-88421 in Ferring Supplier Master database",
+                "Retrieved: Sigma-Aldrich Chemie GmbH | Address: Industriestrasse 25, 9471 Buchs, Switzerland",
+                "Contact email: sigma-aldrich@sial.com | Payment terms: Net 30 | Ordering method: EMAIL",
+                "Supplier status: Active — no purchasing blocks, no compliance flags, no sanctions matches",
+                "Registration date: 2015-09-01 | Region: EMEA | Entity type: Trading Entity",
+                "Supplier enrichment complete — all fields populated for downstream validation"
             ],
             artifacts: [
                 {
                     id: "line-items-1",
                     type: "json",
-                    label: "PR Line Items",
+                    label: "PR Line Items + Supplier Enrichment",
                     data: {
                         line_items: [
                             { line: "1", description: "Analytical Grade Reagents", qty: "10 units", unit_price: "CHF 420.00", total: "CHF 4,200.00" },
                             { line: "2", description: "HPLC Columns C18 250mm", qty: "5 units", unit_price: "CHF 1,150.00", total: "CHF 5,750.00" },
                             { line: "3", description: "Lab Consumables Kit", qty: "5 units", unit_price: "CHF 500.00", total: "CHF 2,500.00" }
                         ],
-                        sum_check: "CHF 12,450.00 = PR total ✓"
+                        sum_check: "CHF 12,450.00 = PR total ✓",
+                        supplier_master: {
+                            supplier_id: "SUP-88421",
+                            name: "Sigma-Aldrich Chemie GmbH",
+                            address: "Industriestrasse 25, 9471 Buchs, Switzerland",
+                            email: "sigma-aldrich@sial.com",
+                            payment_terms: "Net 30",
+                            ordering_method: "EMAIL",
+                            status: "Active",
+                            region: "EMEA"
+                        }
                     }
                 }
             ]
         },
-        // STEP 4: Download + classify attachment
+        // STAGE 4: Attachment Processing (Validation 1/14)
         {
             id: "step-4",
-            title_p: "Downloading and validating attachments...",
+            title_p: "Checking attachments tab — downloading and classifying documents...",
             title_s: "Validation 1/14: Quotation identified (confidence: 0.95) — downloaded",
             reasoning: [
-                "Clicked 'Attachments' tab in PR detail view",
-                "Found 1 attachment: Sigma_Aldrich_Q2026_0847.pdf (2 pages, 312KB)",
-                "Document classification model applied",
-                "Document type: Quotation (confidence: 0.95)",
-                "File format valid (PDF/A compliant)",
-                "Downloaded to processing queue"
+                "Clicked 'Attachments' tab in PR-2026-00847 detail view",
+                "Found 1 attachment: Sigma_Aldrich_Q2026_0847.pdf (2 pages, 312 KB)",
+                "Document classification model applied to PDF content",
+                "Document type: Quotation — confidence: 0.95 (high)",
+                "File format: valid (PDF/A compliant), no corruption detected",
+                "Downloaded to processing queue for structured extraction",
+                "V1 Attachment Check: PASS — supporting document present and classified"
             ],
             artifacts: [
                 {
@@ -152,18 +175,19 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 5: Extract quotation data
+        // STAGE 5: Structured Data Extraction from Document
         {
             id: "step-5",
-            title_p: "Extracting structured data from quotation...",
-            title_s: "Structured data extracted — all fields populated, no discrepancies",
+            title_p: "Extracting structured data from Quotation...",
+            title_s: "Structured data extracted — amounts match, no discrepancies found",
             reasoning: [
-                "Extracted Supplier: Sigma-Aldrich Chemie GmbH, Buchs, Switzerland",
-                "Extracted Amount: CHF 12,450.00 — exact match with PR total ✓",
-                "Extracted Currency: CHF — matches PR currency ✓",
-                "Extracted 3 line items — descriptions, quantities, unit prices match PR ✓",
-                "Quote date: 2026-03-15, Valid until: 2026-06-15",
-                "No discrepancies detected at extraction stage"
+                "Extracted Supplier: Sigma-Aldrich Chemie GmbH, Industriestrasse 25, 9471 Buchs, Switzerland",
+                "Extracted Total Amount: CHF 12,450.00 — exact match with PR total ✓",
+                "Extracted Currency: CHF — matches PR currency field ✓",
+                "Extracted 3 line items — descriptions, quantities, and unit prices align with PR ✓",
+                "Quote date: 2026-03-15 | Valid until: 2026-06-15",
+                "Supplier contact on quotation: sigma-aldrich@sial.com — matches Supplier Master record ✓",
+                "No discrepancies detected at extraction stage — all key fields consistent"
             ],
             artifacts: [
                 {
@@ -186,82 +210,32 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 6: Supplier Master verification (NEW)
+        // STAGE 6: Comprehensive Multi-Domain Validation (V2-V14, all PASS)
         {
             id: "step-6",
-            title_p: "Verifying supplier against Ferring Supplier Master...",
-            title_s: "Supplier Master: Sigma-Aldrich Chemie GmbH (SUP-88421) — Active, verified PASS",
+            title_p: "Running comprehensive validation suite — all 14 domains...",
+            title_s: "Validations 2-14 complete — all PASS (14/14, aggregate confidence: 0.97)",
             reasoning: [
-                "Opened Ferring Supplier Master portal",
-                "Searched 'Sigma-Aldrich' — found SUP-88421: Sigma-Aldrich Chemie GmbH (Active)",
-                "Name match: 'Sigma-Aldrich Chemie GmbH' — exact match with PR and quotation ✓",
-                "Supplier status: Active — no purchasing blocks, no compliance flags",
-                "Registration date: 2015-09-01, Region: EMEA",
-                "V6 Supplier Validation: PASS (confidence 0.99)"
-            ],
-            artifacts: [
-                {
-                    id: "supplier-master-1",
-                    type: "json",
-                    label: "Supplier Master Verification",
-                    data: {
-                        search_term: "Sigma-Aldrich",
-                        result: { supplier_id: "SUP-88421", name: "Sigma-Aldrich Chemie GmbH", status: "Active", region: "EMEA", registration_date: "2015-09-01", entity_type: "Trading Entity" },
-                        pr_supplier_name: "Sigma-Aldrich Chemie GmbH",
-                        quotation_supplier_name: "Sigma-Aldrich Chemie GmbH",
-                        match: "EXACT MATCH ✓",
-                        v6_result: "PASS"
-                    }
-                }
-            ]
-        },
-        // STEP 7: Validation suite V2-V8
-        {
-            id: "step-7",
-            title_p: "Running comprehensive validation suite (14 domains)...",
-            title_s: "Validations 2-8 complete: Accounting, Budget Owner, Currency, Material Group, Supplier, Pricing, Service Type — all PASS",
-            reasoning: [
-                "V2 Accounting: Assignment K, Cost Center CC-RD-4521, GL 51200100 — consistent ✓ PASS",
+                "V2 Accounting: Assignment K, Cost Center CC-RD-4521, GL 51200100 — consistent with chart of accounts ✓ PASS",
                 "V3 Budget Owner: Dr. Marcus Weber ≠ Elena Kowalski (requester) — segregation of duties confirmed ✓ PASS",
-                "V4 Currency: CHF matches across quotation and all 3 PR line items ✓ PASS",
-                "V5 Material Group: MG-LAB-001 linked to GL 51200100 in approved master list ✓ PASS",
-                "V6 Supplier: Sigma-Aldrich Chemie GmbH — exact match SUP-88421 via Supplier Master (0.99 confidence) ✓ PASS",
-                "V7 Pricing: PR total CHF 12,450.00 = Quotation total CHF 12,450.00 — exact match, 0.00% variance ✓ PASS",
-                "V8 Service Type: SAC code 998599 valid, strong classification confidence (0.91) ✓ PASS"
-            ]
-        },
-        // STEP 8: Validation suite V9-V14
-        {
-            id: "step-8",
-            title_p: "Completing validation suite (domains 9-14)...",
-            title_s: "Validations 9-14 complete: Ordering, Ship-To, Sold-To, Company Code, Quantity, Deliver-To — all PASS",
-            reasoning: [
-                "V9 Ordering: EMAIL method — sigma-aldrich@sial.com valid, domain @sial.com matches Sigma-Aldrich registered contact ✓ PASS",
-                "V10 Ship-To: SHIP-CH-001 valid, linked to company code 1000 ✓ PASS",
+                "V4 Currency: CHF consistent across PR header, all 3 line items, and quotation ✓ PASS",
+                "V5 Material Group: MG-LAB-001 correctly linked to GL 51200100 in approved master list ✓ PASS",
+                "V6 Supplier ID: Sigma-Aldrich Chemie GmbH — exact name match, SUP-88421 Active in Supplier Master (confidence: 0.99) ✓ PASS",
+                "V7 Pricing: PR total CHF 12,450.00 = Quotation total CHF 12,450.00 — 0.00% variance ✓ PASS",
+                "V8 Service Type: SAC code 998599 valid, strong classification confidence (0.91) ✓ PASS",
+                "V9 Ordering Method: EMAIL — sigma-aldrich@sial.com valid, domain @sial.com matches Supplier Master ✓ PASS",
+                "V10 Ship-To: SHIP-CH-001 valid, correctly linked to company code 1000 ✓ PASS",
                 "V11 Sold-To: 1000 = 1000, entity name Ferring International Center SA confirmed ✓ PASS",
                 "V12 Company Code: Ferring International Center SA — high confidence (0.97) ✓ PASS",
-                "V13 Quantity: All 3 line items quantities match at Level 1 (individual item quantities verified) ✓ PASS",
-                "V14 Deliver-To: Ferring R&D Lab, Building C, Saint-Prex — valid and consistent ✓ PASS"
-            ]
-        },
-        // STEP 9: Validation summary
-        {
-            id: "step-9",
-            title_p: "Generating validation summary...",
-            title_s: "Overall status: PASS — all 14/14 validations passed with zero exceptions",
-            reasoning: [
-                "Total validations run: 14",
-                "Passed: 14 (100%)",
-                "Failed: 0",
-                "Manual Review required: 0",
-                "Aggregate confidence score: 0.97 (very high)",
-                "Recommendation: Auto-approve PR — no human review required"
+                "V13 Quantity: All 3 line item quantities verified at Level 1 — individual item quantities match quotation ✓ PASS",
+                "V14 Deliver-To: Ferring R&D Lab, Building C, Saint-Prex — valid and consistent with cost center ✓ PASS",
+                "Overall: 14/14 PASS | Failed: 0 | Manual Review: 0 | Aggregate confidence: 0.97 → Auto-approve eligible"
             ],
             artifacts: [
                 {
                     id: "val-summary-1",
                     type: "json",
-                    label: "Validation Summary",
+                    label: "Validation Summary — All 14 Checks",
                     data: {
                         overall_status: "PASS",
                         total_validations: 14,
@@ -270,34 +244,44 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                         manual_review: 0,
                         aggregate_confidence: 0.97,
                         validation_results: {
-                            attachment: "PASS", accounting: "PASS", budget_owner: "PASS",
-                            currency: "PASS", material_group: "PASS", supplier_id: "PASS",
-                            pricing: "PASS", service_type: "PASS", ordering_method: "PASS",
-                            ship_to: "PASS", sold_to: "PASS", company_code: "PASS",
-                            quantity: "PASS", deliver_to: "PASS"
+                            "V1_Attachment": "PASS",
+                            "V2_Accounting": "PASS",
+                            "V3_Budget_Owner": "PASS",
+                            "V4_Currency": "PASS",
+                            "V5_Material_Group": "PASS",
+                            "V6_Supplier_ID": "PASS",
+                            "V7_Pricing": "PASS",
+                            "V8_Service_Type": "PASS",
+                            "V9_Ordering_Method": "PASS",
+                            "V10_Ship_To": "PASS",
+                            "V11_Sold_To": "PASS",
+                            "V12_Company_Code": "PASS",
+                            "V13_Quantity": "PASS",
+                            "V14_Deliver_To": "PASS"
                         }
                     }
                 }
             ]
         },
-        // STEP 10: SAP Ariba approval
+        // STAGE 7: Automated Action — Auto-approve in SAP Ariba
         {
-            id: "step-10",
-            title_p: "Approving PR in SAP Ariba...",
-            title_s: "PR-2026-00847 approved in SAP Ariba — status: Pending → Approved",
+            id: "step-7",
+            title_p: "Overall status: PASS — auto-approving PR-2026-00847 in SAP Ariba...",
+            title_s: "PR-2026-00847 approved in SAP Ariba — status: Pending Approval → Approved",
             reasoning: [
-                "Desktop agent returned to SAP Ariba PR-2026-00847",
+                "All 14 validation checks passed — auto-approve threshold met (0 failures, 0 manual reviews)",
+                "Desktop agent returned to SAP Ariba PR-2026-00847 detail view",
                 "Selected 'Approve' action from approver actions menu",
-                "Typed approval comment: 'All 14 validation checks passed (100%). Quotation CHF 12,450.00 matches PR exactly. Supplier Sigma-Aldrich Chemie GmbH (SUP-88421) verified via Supplier Master. Auto-approved by Pace.'",
-                "Status changed: Pending Approval → Approved",
-                "Approval confirmation received (200 OK)",
-                "No email notification required — full auto-approve path"
+                "Approval comment submitted: 'All 14 validation checks passed (100%). Quotation CHF 12,450.00 matches PR exactly. Supplier Sigma-Aldrich Chemie GmbH (SUP-88421) verified via Supplier Master. Auto-approved by Pace.'",
+                "PR status changed: Pending Approval → Approved",
+                "Approval confirmation received — HTTP 200 OK",
+                "No HITL gate triggered — full automated approval path completed"
             ],
             artifacts: [
                 {
                     id: "v-ariba-approve-1",
                     type: "video",
-                    label: "Desktop Agent: SAP Ariba Approval",
+                    label: "Desktop Agent: SAP Ariba Approval Action",
                     videoPath: "/data/sap_ariba_login_fpr001.webm"
                 },
                 {
@@ -309,39 +293,28 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                         pr_id: "PR-2026-00847",
                         status_before: "Pending Approval",
                         status_after: "Approved",
-                        approval_comment: "All 14 validation checks passed (100%). Quotation CHF 12,450.00 matches PR exactly. Supplier Sigma-Aldrich Chemie GmbH (SUP-88421) verified. Auto-approved by Pace.",
+                        approval_comment: "All 14 validation checks passed (100%). Quotation CHF 12,450.00 matches PR exactly. Supplier Sigma-Aldrich Chemie GmbH (SUP-88421) verified via Supplier Master. Auto-approved by Pace.",
                         timestamp: "2026-03-26T10:15:42Z",
                         api_response: "200 OK",
-                        approved_by: "Pace Automation Agent"
+                        approved_by: "Pace Automation Agent (pace.agent@ferring.com)"
                     }
                 }
             ]
         },
-        // STEP 11: Update Ferring Supplier Master
+        // STAGE 9: Process Completion and Audit Trail
         {
-            id: "step-11",
-            title_p: "Updating Ferring Supplier Master — confirming clean validation for Sigma-Aldrich...",
-            title_s: "Supplier Master updated — SUP-88421 (Sigma-Aldrich): validation complete, all checks passed",
-            reasoning: [
-                "Opened Ferring Supplier Master portal",
-                "Located supplier record SUP-88421 (Sigma-Aldrich / Merck)",
-                "Added validation log: \"PR-2026-00847 — all checks passed, auto-approved\"",
-                "Supplier compliance score: Maintained (A-rating)",
-                "Last successful validation: " + new Date().toISOString().split("T")[0]
-            ]
-        },
-        // STEP 12: Audit trail
-        {
-            id: "step-12",
-            title_p: "Finalizing and logging audit trail...",
+            id: "step-8",
+            title_p: "Finalizing audit trail and archiving process record...",
             title_s: "Process complete — PR-2026-00847 auto-approved, audit trail archived",
             reasoning: [
-                "Processing duration: 42 seconds",
-                "Systems accessed: SAP Ariba, Ferring Supplier Master",
-                "14 validations run — all passed",
-                "0 HITL gates triggered — full auto-approve",
-                "Supplier Master verification: Sigma-Aldrich Chemie GmbH (SUP-88421) confirmed",
-                "All artifacts archived for compliance and audit"
+                "Processing duration: 42 seconds (Stage 1 queue to Stage 7 approval)",
+                "Systems accessed: SAP Ariba (queue, PR detail, approval action), Ferring Supplier Master",
+                "14 validations run — all 14 passed (100%) | Aggregate confidence: 0.97",
+                "0 HITL gates triggered — full automated approval, no human intervention required",
+                "Supplier verified: Sigma-Aldrich Chemie GmbH (SUP-88421) — Active, EMEA, Net 30",
+                "PR-2026-00847 status: Approved | Requester Elena Kowalski notified via SAP Ariba system",
+                "All artifacts (PR header, line items, quotation extraction, validation summary, approval confirmation) archived",
+                "Queue updated — next PR (PR-2026-00851) available for processing"
             ]
         }
     ];

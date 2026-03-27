@@ -47,168 +47,165 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
 
     const steps = [
-        // STEP 1: SAP Ariba PR receipt
+
+        // ── STAGE 1: ServiceNow queue pickup ──────────────────────────────────
         {
             id: "step-1",
-            title_p: "Receiving PR-2026-01203 from vendor via SAP Ariba...",
-            title_s: "PR-2026-01203 received — Thermo Fisher Scientific, USD 67,850.00, US region",
+            title_p: "Checking ServiceNow queue for assigned tickets...",
+            title_s: "ServiceNow ticket INC-2026-04891 picked up — PR-2026-01203, Thermo Fisher Scientific, USD 67,850.00",
             reasoning: [
-                "PR-2026-01203 received in SAP Ariba procurement queue",
-                "Vendor: Thermo Fisher Scientific (SUP-90312)",
-                "Requester: James Martinez (US Lab Operations)",
-                "Company Code: 4100 — Ferring Pharmaceuticals Inc.",
-                "Total Amount: USD 67,850.00",
-                "Region: US (Parsippany, NJ)",
-                "Priority: Normal — standard processing timeline",
-                "Initiating automated validation workflow"
+                "Logged into ServiceNow portal (ferring.service-now.com) as Zamp.ai_test",
+                "Queried 'My Work' queue — filtered by Assignment Group: Zamp.ai_test",
+                "Found 1 new ticket: INC-2026-04891",
+                "  Category: Procurement / PR Approval",
+                "  Short description: PR-2026-01203 — Thermo Fisher Scientific, USD 67,850.00, US Parsippany",
+                "  Submitted by: Jennifer Martinez (US Lab Operations)",
+                "  Priority: Medium",
+                "Opened ticket INC-2026-04891 — extracted PR reference: PR-2026-01203",
+                "Updated ticket status: New → In Progress",
+                "Initiating PR validation workflow"
             ],
             artifacts: [
                 {
-                    id: "v-ariba-5",
+                    id: "v-snow-5",
                     type: "video",
-                    label: "Desktop Agent: SAP Ariba PR-2026-01203",
-                    videoPath: "/data/sap_ariba_pr_fpr005.webm"
+                    label: "ServiceNow: Ticket INC-2026-04891 Pickup",
+                    videoPath: "/data/servicenow_ticket_fpr005.webm"
                 },
                 {
-                    id: "pr-receipt-5",
+                    id: "snow-ticket-5",
                     type: "json",
-                    label: "PR Receipt Data",
+                    label: "ServiceNow Ticket INC-2026-04891",
                     data: {
-                        pr_id: "PR-2026-01203",
+                        ticket_id: "INC-2026-04891",
+                        category: "Procurement / PR Approval",
+                        pr_reference: "PR-2026-01203",
+                        submitted_by: "Jennifer Martinez",
                         supplier: "Thermo Fisher Scientific",
-                        supplier_id: "SUP-90312",
-                        requester: "James Martinez",
                         amount: "USD 67,850.00",
-                        company_code: "4100",
-                        region: "US",
-                        received: "2026-03-26T09:30:00Z",
-                        status: "Pending Validation"
+                        region: "US — Parsippany, NJ",
+                        priority: "Medium",
+                        status_before: "New",
+                        status_after: "In Progress",
+                        assigned_to: "Zamp.ai_test"
                     }
                 }
             ]
         },
-        // STEP 2: SAP Ariba — detailed field reading
+
+        // ── STAGE 2: Authentication and PR retrieval ──────────────────────────
         {
             id: "step-2",
-            title_p: "Reading all PR-2026-01203 fields in SAP Ariba...",
-            title_s: "All PR fields extracted — cross-referencing with vendor records",
-            reasoning: [
-                "Read ticket field 'PR Number': PR-2026-01203 → SAP Ariba search key",
-                "Read ticket field 'Company Code': 4100 → entity: Ferring Pharmaceuticals Inc.",
-                "Read ticket field 'Requester': Jennifer Martinez → cross-reference in SAP Ariba requester field",
-                "Read ticket field 'Supplier': Thermo Fisher Scientific → expected SAP supplier name",
-                "Read ticket field 'Estimated Amount': USD 67,850.00 → amount to verify against PR",
-                "Read ticket field 'Priority': Medium → no SLA escalation required",
-                "Read ticket field 'Region': US (Parsippany, NJ) → SHIP-US-001 expected",
-                "All fields extracted — switching to SAP Ariba for full PR pull"
-            ],
-            artifacts: [
-                {
-                    id: "snow-field-map-5",
-                    type: "json",
-                    label: "ServiceNow → SAP Ariba Field Mapping",
-                    data: {
-                        handoff_fields: [
-                            { snow_field: "PR Number", snow_value: "PR-2026-01203", sap_target: "PR search key" },
-                            { snow_field: "Company Code", snow_value: "4100", sap_target: "Company Code filter" },
-                            { snow_field: "Requester", snow_value: "Jennifer Martinez", sap_target: "Requester field cross-check" },
-                            { snow_field: "Supplier", snow_value: "Thermo Fisher Scientific", sap_target: "Supplier name validation" },
-                            { snow_field: "Estimated Amount", snow_value: "USD 67,850.00", sap_target: "PR total cross-check" },
-                            { snow_field: "Region", snow_value: "US — Parsippany, NJ", sap_target: "Ship-To code SHIP-US-001" }
-                        ],
-                        handoff_status: "Complete — all fields mapped"
-                    }
-                }
-            ]
-        },
-        // STEP 3: SAP Ariba — read all PR fields
-        {
-            id: "step-3",
-            title_p: "Desktop agent navigating SAP Ariba — reading all PR-2026-01203 fields...",
-            title_s: "PR-2026-01203 retrieved — all fields read, Thermo Fisher Scientific, USD 67,850.00",
+            title_p: "Authenticating to SAP Ariba and retrieving PR details...",
+            title_s: "Connected to SAP Ariba — PR-2026-01203 opened, Thermo Fisher Scientific, USD 67,850.00",
             reasoning: [
                 "Authenticated to SAP Ariba as pace.agent@ferring.com",
-                "Searched PR-2026-01203 — found in pending approvals",
-                "Field by field from PR detail view:",
+                "Session established — navigated to Manage → Purchase Requisitions",
+                "Searched PR-2026-01203 — found in pending approvals queue",
+                "Opened PR detail view",
+                "PR header fields read:",
                 "  PR ID: PR-2026-01203 ✓ (matches ServiceNow reference)",
-                "  Company Code: 4100 — Ferring Pharmaceuticals Inc. ✓ (matches ServiceNow)",
+                "  Company Code: 4100 — Ferring Pharmaceuticals Inc.",
                 "  Requester: Jennifer Martinez ✓ (matches ServiceNow)",
                 "  Budget Owner: Dr. Michael Torres (≠ Jennifer — segregation confirmed)",
-                "  Supplier: Thermo Fisher Scientific (Supplier ID: SUP-10245)",
+                "  PO Owner: US Procurement Operations",
                 "  Cost Center: CC-US-LAB-001",
-                "  Total Amount: USD 67,850.00 ✓ (matches ServiceNow estimate)",
+                "  Supplier: Thermo Fisher Scientific (Supplier ID: SUP-10245)",
                 "  Currency: USD",
-                "  Region: US (Parsippany, NJ)"
+                "  Total Amount: USD 67,850.00 ✓ (matches ServiceNow estimate)",
+                "  Region: US — Parsippany, NJ"
             ],
             artifacts: [
                 {
                     id: "v-ariba-5",
                     type: "video",
-                    label: "Desktop Agent: SAP Ariba PR-2026-01203 Detail",
+                    label: "SAP Ariba: PR-2026-01203 Detail View",
                     videoPath: "/data/sap_ariba_pr_fpr005.webm"
                 },
                 {
                     id: "pr-header-5",
                     type: "json",
-                    label: "PR-2026-01203 Header — All Fields",
+                    label: "PR-2026-01203 Header",
                     data: {
                         pr_id: "PR-2026-01203",
                         company_code: "4100",
                         entity: "Ferring Pharmaceuticals Inc.",
                         requester: "Jennifer Martinez",
                         budget_owner: "Dr. Michael Torres",
+                        po_owner: "US Procurement Operations",
                         cost_center: "CC-US-LAB-001",
-                        supplier: "Thermo Fisher Scientific",
-                        supplier_id: "SUP-10245",
                         currency: "USD",
                         total_amount: "67,850.00",
+                        supplier: "Thermo Fisher Scientific",
+                        supplier_id: "SUP-10245",
                         region: "US — Parsippany, NJ",
-                        snow_cross_check: "All 6 fields match ServiceNow ticket ✓"
+                        line_items_count: 4
                     }
                 }
             ]
         },
-        // STEP 4: Extract line items
+
+        // ── STAGE 3: Data extraction and supplier enrichment ──────────────────
         {
-            id: "step-4",
-            title_p: "Extracting all 4 PR line items and enriching supplier data...",
-            title_s: "4 line items extracted — USD 67,850.00 confirmed, Thermo Fisher SUP-10245 verified",
+            id: "step-3",
+            title_p: "Extracting PR data — header fields, line items, and supplier enrichment...",
+            title_s: "4 line items extracted — USD 67,850.00 total, supplier enriched via Supplier Master",
             reasoning: [
-                "Line 1: Analytical Balance (0.1mg resolution) — 1 unit × USD 12,500.00",
-                "Line 2: High-Speed Centrifuge — 1 unit × USD 28,750.00",
-                "Line 3: Multi-Channel Pipette Set — 1 set × USD 8,600.00",
-                "Line 4: UV-Vis Spectrophotometer — 1 unit × USD 18,000.00",
-                "Sum: USD 12,500 + USD 28,750 + USD 8,600 + USD 18,000 = USD 67,850.00 ✓",
+                "Clicked 'Line Items' tab in PR detail view",
+                "Line 1: Analytical Balance (0.1mg resolution) — 1 unit × USD 12,500.00 = USD 12,500.00",
+                "Line 2: High-Speed Centrifuge — 1 unit × USD 28,750.00 = USD 28,750.00",
+                "Line 3: Multi-Channel Pipette Set — 1 set × USD 8,600.00 = USD 8,600.00",
+                "Line 4: UV-Vis Spectrophotometer — 1 unit × USD 18,000.00 = USD 18,000.00",
+                "Sum: USD 12,500 + USD 28,750 + USD 8,600 + USD 18,000 = USD 67,850.00 ✓ — matches PR header",
                 "All 4 lines reference Material Group: MG-EQP-001",
-                "Supplier master: Thermo Fisher Scientific Inc. (SUP-10245) — Active, no blocks"
+                "Supplier Master enrichment: searched Ferring Supplier Master for 'Thermo Fisher Scientific'",
+                "  Record found: SUP-10245 — Thermo Fisher Scientific Inc., Active, no purchasing blocks",
+                "  Registered address: 168 Third Avenue, Waltham, MA 02451, USA",
+                "  Ordering method: EMAIL — orders@thermofisher.com",
+                "  Payment terms: NET-30",
+                "  Supplier status: Active — compliant, no flags"
             ],
             artifacts: [
                 {
                     id: "line-items-5",
                     type: "json",
-                    label: "PR Line Items",
+                    label: "PR Line Items + Supplier Enrichment",
                     data: {
                         line_items: [
-                            { line: "1", description: "Analytical Balance (0.1mg)", qty: "1 unit", unit_price: "USD 12,500.00", total: "USD 12,500.00" },
+                            { line: "1", description: "Analytical Balance (0.1mg resolution)", qty: "1 unit", unit_price: "USD 12,500.00", total: "USD 12,500.00" },
                             { line: "2", description: "High-Speed Centrifuge", qty: "1 unit", unit_price: "USD 28,750.00", total: "USD 28,750.00" },
                             { line: "3", description: "Multi-Channel Pipette Set", qty: "1 set", unit_price: "USD 8,600.00", total: "USD 8,600.00" },
                             { line: "4", description: "UV-Vis Spectrophotometer", qty: "1 unit", unit_price: "USD 18,000.00", total: "USD 18,000.00" }
                         ],
-                        sum_check: "USD 67,850.00 = PR total ✓"
+                        sum_check: "USD 67,850.00 = PR header total ✓",
+                        supplier_master: {
+                            supplier_id: "SUP-10245",
+                            name: "Thermo Fisher Scientific Inc.",
+                            status: "Active",
+                            address: "168 Third Avenue, Waltham, MA 02451, USA",
+                            ordering_method: "EMAIL — orders@thermofisher.com",
+                            payment_terms: "NET-30",
+                            purchasing_blocks: "None"
+                        }
                     }
                 }
             ]
         },
-        // STEP 5: Download + classify attachment
+
+        // ── STAGE 4: Attachment processing (Validation 1/14) ─────────────────
         {
-            id: "step-5",
-            title_p: "Downloading and classifying attachment...",
+            id: "step-4",
+            title_p: "Checking attachments tab — downloading and classifying documents...",
             title_s: "Validation 1/14: Purchase Order identified (confidence: 0.91) — downloaded",
             reasoning: [
+                "Clicked 'Attachments' tab in PR detail view",
                 "Found 1 attachment: ThermoFisher_PO_2026_01203.pdf (2 pages, 198KB)",
+                "Downloaded and classified document",
                 "Document type: Purchase Order (confidence: 0.91)",
                 "PO Date: 2026-03-18",
-                "Expected Delivery: 2026-04-15"
+                "Vendor reference: TF-PO-2026-01203",
+                "Expected Delivery: 2026-04-15",
+                "Validation 1/14 — Attachment: PASS"
             ],
             artifacts: [
                 {
@@ -219,67 +216,116 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                 }
             ]
         },
-        // STEP 6: Extract + validate V2-V7
+
+        // ── STAGE 5: Structured data extraction from document ─────────────────
         {
-            id: "step-6",
-            title_p: "Extracting structured data and running validations 2-7...",
-            title_s: "Data extracted — Validations 2-7 all PASS",
+            id: "step-5",
+            title_p: "Extracting structured data from Purchase Order...",
+            title_s: "Structured data extracted — PO total USD 67,850.00 matches PR exactly",
             reasoning: [
-                "Extracted: PO total USD 67,850.00 — exact match with PR ✓",
-                "V2 Accounting: CC-US-LAB-001, GL 21400200 — consistent ✓ PASS",
-                "V3 Budget Owner: Dr. Michael Torres ≠ Jennifer Martinez — segregation confirmed ✓ PASS",
-                "V4 Currency: USD consistent across PO and all 4 line items ✓ PASS",
-                "V5 Material Group: MG-EQP-001 linked to GL 21400200 in approved master ✓ PASS",
-                "V6 Supplier: Thermo Fisher Scientific — 98% match SUP-10245 (Inc. vs without) ✓ PASS",
-                "V7 Pricing: USD 67,850.00 = USD 67,850.00 exact match ✓ PASS"
-            ]
-        },
-        // STEP 7: Validation V8-V14
-        {
-            id: "step-7",
-            title_p: "Running validations 8-14...",
-            title_s: "Validations 8-14 all PASS — clean sweep, auto-approval confirmed",
-            reasoning: [
-                "V8 Service Type: Equipment HSN codes valid for laboratory instrumentation ✓ PASS",
-                "V9 Ordering: EMAIL, orders@thermofisher.com valid, domain verified ✓ PASS",
-                "V10 Ship-To: SHIP-US-001 (Parsippany facility) linked to company code 4100 ✓ PASS",
-                "V11 Sold-To: 4100 = 4100, entity name confirmed ✓ PASS",
-                "V12 Company Code: Ferring Pharmaceuticals Inc. — confidence 0.99 ✓ PASS",
-                "V13 Quantity: All 4 line items match individually at Level 1 ✓ PASS",
-                "V14 Deliver-To: Ferring Labs, 100 Interpace Pkwy, Parsippany NJ — valid ✓ PASS"
+                "Parsed ThermoFisher_PO_2026_01203.pdf",
+                "Extracted: Vendor — Thermo Fisher Scientific Inc.",
+                "Extracted: Bill-To — Ferring Pharmaceuticals Inc., 100 Interpace Pkwy, Parsippany NJ 07054",
+                "Extracted: PO Date — 2026-03-18",
+                "Extracted: PO Number — TF-PO-2026-01203",
+                "Extracted: 4 line items matching PR line item descriptions",
+                "Extracted: PO Total — USD 67,850.00",
+                "Cross-check: PO total USD 67,850.00 = PR total USD 67,850.00 ✓",
+                "Cross-check: Supplier name 'Thermo Fisher Scientific Inc.' matches SUP-10245 ✓",
+                "No discrepancies found — document data consistent with PR"
             ],
             artifacts: [
                 {
-                    id: "val-sum-5",
+                    id: "po-extracted-5",
                     type: "json",
-                    label: "Validation Summary",
+                    label: "PO Extracted Data",
+                    data: {
+                        document_type: "Purchase Order",
+                        confidence: 0.91,
+                        vendor: "Thermo Fisher Scientific Inc.",
+                        bill_to: "Ferring Pharmaceuticals Inc., 100 Interpace Pkwy, Parsippany NJ 07054",
+                        po_number: "TF-PO-2026-01203",
+                        po_date: "2026-03-18",
+                        po_total: "USD 67,850.00",
+                        pr_total: "USD 67,850.00",
+                        match: "EXACT MATCH ✓",
+                        delivery_date: "2026-04-15"
+                    }
+                }
+            ]
+        },
+
+        // ── STAGE 6: Comprehensive validation V2–V14 ─────────────────────────
+        {
+            id: "step-6",
+            title_p: "Running comprehensive validation suite — domains 2 through 14...",
+            title_s: "Validations 2–14 complete — all 13 PASS, 14/14 overall clean sweep",
+            reasoning: [
+                "V2  Accounting: CC-US-LAB-001 valid, GL 21400200 linked correctly ✓ PASS",
+                "V3  Budget Owner: Dr. Michael Torres ≠ Jennifer Martinez — segregation of duties confirmed ✓ PASS",
+                "V4  Currency: USD consistent across PR header, all 4 line items, and PO ✓ PASS",
+                "V5  Material Group: MG-EQP-001 linked to GL 21400200 in approved master ✓ PASS",
+                "V6  Supplier ID: 'Thermo Fisher Scientific Inc.' — 98% match to SUP-10245 (Inc. suffix variant) ✓ PASS",
+                "V7  Pricing: PO total USD 67,850.00 = PR total USD 67,850.00 — exact match ✓ PASS",
+                "V8  Service Type: HSN codes valid for laboratory instrumentation ✓ PASS",
+                "V9  Ordering Method: EMAIL, orders@thermofisher.com — domain verified ✓ PASS",
+                "V10 Ship-To: SHIP-US-001 (Parsippany facility) linked to company code 4100 ✓ PASS",
+                "V11 Sold-To: Company code 4100 = Ferring Pharmaceuticals Inc. ✓ PASS",
+                "V12 Company Code: Ferring Pharmaceuticals Inc. — confidence 0.99 ✓ PASS",
+                "V13 Quantity: All 4 line items match PO quantities individually ✓ PASS",
+                "V14 Deliver-To: Ferring Labs, 100 Interpace Pkwy, Parsippany NJ — valid ✓ PASS",
+                "Overall result: 14/14 PASS — zero failures, zero manual reviews"
+            ],
+            artifacts: [
+                {
+                    id: "val-summary-5",
+                    type: "json",
+                    label: "Validation Summary — 14/14 PASS",
                     data: {
                         overall_status: "PASS",
                         passed: 14, failed: 0, manual_review: 0,
-                        validation_results: {
-                            attachment: "PASS", accounting: "PASS", budget_owner: "PASS",
-                            currency: "PASS", material_group: "PASS", supplier_id: "PASS",
-                            pricing: "PASS", service_type: "PASS", ordering_method: "PASS",
-                            ship_to: "PASS", sold_to: "PASS", company_code: "PASS",
-                            quantity: "PASS", deliver_to: "PASS"
+                        results: {
+                            "V1 Attachment": "PASS",
+                            "V2 Accounting": "PASS",
+                            "V3 Budget Owner": "PASS",
+                            "V4 Currency": "PASS",
+                            "V5 Material Group": "PASS",
+                            "V6 Supplier ID": "PASS",
+                            "V7 Pricing": "PASS",
+                            "V8 Service Type": "PASS",
+                            "V9 Ordering Method": "PASS",
+                            "V10 Ship-To": "PASS",
+                            "V11 Sold-To": "PASS",
+                            "V12 Company Code": "PASS",
+                            "V13 Quantity": "PASS",
+                            "V14 Deliver-To": "PASS"
                         }
                     }
                 }
             ]
         },
-        // STEP 8: SAP Ariba approval
+
+        // ── STAGE 7: Auto-approve in SAP Ariba ───────────────────────────────
         {
-            id: "step-8",
-            title_p: "Approving PR in SAP Ariba...",
-            title_s: "PR-2026-01203 approved in SAP Ariba — status: Pending → Approved",
+            id: "step-7",
+            title_p: "Overall status: PASS — auto-approving PR-2026-01203 in SAP Ariba...",
+            title_s: "PR-2026-01203 approved in SAP Ariba — status: Pending Approval → Approved",
             reasoning: [
+                "All 14 validation checks passed — auto-approval path confirmed",
                 "Desktop agent navigated to PR-2026-01203 in SAP Ariba",
                 "Selected 'Approve' from approver actions menu",
-                "Typed approval comment: 'All 14 validation checks passed (100%). PO USD 67,850.00 matches PR exactly. Thermo Fisher Scientific (SUP-10245) verified. Auto-approved by Pace. ServiceNow ref: INC-2026-04891.'",
-                "Status: Pending Approval → Approved",
-                "Confirmation received (200 OK)"
+                "Entered approval comment: 'All 14 validation checks passed (14/14). PO USD 67,850.00 matches PR exactly. Thermo Fisher Scientific SUP-10245 verified. Auto-approved by Pace. ServiceNow ref: INC-2026-04891.'",
+                "Confirmed approval — status: Pending Approval → Approved",
+                "Confirmation received (200 OK)",
+                "Approval timestamp: 2026-03-26T10:15:00Z"
             ],
             artifacts: [
+                {
+                    id: "v-ariba-approve-5",
+                    type: "video",
+                    label: "SAP Ariba: PR-2026-01203 Approval",
+                    videoPath: "/data/sap_ariba_pr_fpr005.webm"
+                },
                 {
                     id: "ariba-confirm-5",
                     type: "json",
@@ -289,28 +335,40 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                         pr_id: "PR-2026-01203",
                         status_before: "Pending Approval",
                         status_after: "Approved",
-                        approval_comment: "All 14 validations passed. PO matches PR. Thermo Fisher SUP-10245 verified. ServiceNow: INC-2026-04891.",
+                        approval_comment: "All 14 validations passed. PO USD 67,850.00 exact match. Thermo Fisher SUP-10245 verified. ServiceNow: INC-2026-04891.",
+                        approved_by: "Pace Automation Agent",
                         timestamp: "2026-03-26T10:15:00Z",
-                        api_response: "200 OK",
-                        approved_by: "Pace Automation Agent"
+                        api_response: "200 OK"
                     }
                 }
             ]
         },
-        // STEP 9: Resolve ServiceNow ticket
+
+        // ── STAGE 9: ServiceNow ticket resolved + audit trail ─────────────────
         {
-            id: "step-9",
-            title_p: "Returning to ServiceNow — updating ticket INC-2026-04891...",
-            title_s: "ServiceNow ticket INC-2026-04891 resolved — full resolution notes posted",
+            id: "step-8",
+            title_p: "Updating ServiceNow ticket INC-2026-04891 with approval outcome...",
+            title_s: "ServiceNow ticket INC-2026-04891 resolved — validation summary posted, ticket closed",
             reasoning: [
                 "Returned to ServiceNow portal",
                 "Opened ticket INC-2026-04891",
-                "Posted work note: 'PR-2026-01203 validated successfully — 14/14 checks passed. All ServiceNow fields cross-checked against SAP Ariba PR. USD 67,850.00 confirmed. Thermo Fisher Scientific SUP-10245 verified. PR approved in SAP Ariba at 10:15 UTC.'",
+                "Posted resolution work note:",
+                "  'PR-2026-01203 validated and approved. 14/14 checks passed. All fields verified against SAP Ariba PR. USD 67,850.00 confirmed. Thermo Fisher Scientific SUP-10245 verified. PR approved in SAP Ariba at 10:15 UTC.'",
                 "Updated ticket status: In Progress → Resolved",
                 "Resolution code: Procurement — Auto-approved (no issues)",
-                "Closure confirmation received"
+                "Resolution timestamp: 2026-03-26T10:16:00Z",
+                "Closure confirmation received",
+                "Audit trail complete — process FPR_005 finished",
+                "Total duration: ~48 seconds (excluding system latency)",
+                "HITL gates triggered: 0 — full straight-through processing"
             ],
             artifacts: [
+                {
+                    id: "v-snow-resolved-5",
+                    type: "video",
+                    label: "ServiceNow: Ticket INC-2026-04891 Resolved",
+                    videoPath: "/data/servicenow_ticket_fpr005.webm"
+                },
                 {
                     id: "snow-resolved-5",
                     type: "json",
@@ -319,91 +377,42 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
                         ticket_id: "INC-2026-04891",
                         status_before: "In Progress",
                         status_after: "Resolved",
-                        resolution_note: "PR-2026-01203 validated and approved. 14/14 checks passed. All fields verified against SAP Ariba. PR approved at 10:15 UTC.",
+                        resolution_note: "PR-2026-01203 validated and approved. 14/14 checks passed. PO USD 67,850.00 exact match. Thermo Fisher SUP-10245 verified. PR approved in SAP Ariba at 10:15 UTC.",
+                        resolution_code: "Procurement — Auto-approved (no issues)",
                         resolved_by: "Pace Automation Agent",
                         timestamp: "2026-03-26T10:16:00Z"
                     }
-                }
-            ]
-        },
-        // STEP 10: Create ServiceNow ticket for vendor coordination
-        {
-            id: "step-10",
-            title_p: "Creating ServiceNow ticket for vendor coordination — Thermo Fisher Scientific...",
-            title_s: "ServiceNow ticket INC-2026-04891 created — Thermo Fisher Scientific, PR approval logged",
-            reasoning: [
-                "Logged into ServiceNow portal (ferring.service-now.com)",
-                "Created new ticket INC-2026-04891",
-                "Category: Procurement — Vendor Coordination",
-                "Short description: PR-2026-01203 approved — Thermo Fisher Scientific, USD 67,850. Tracking PO generation.",
-                "Assigned to: US Procurement Team",
-                "Priority: Medium",
-                "Link to SAP Ariba PR: PR-2026-01203"
-            ],
-            artifacts: [
-                {
-                    id: "v-snow-create-5",
-                    type: "video",
-                    label: "Desktop Agent: ServiceNow Ticket Creation",
-                    videoPath: "/data/servicenow_ticket_fpr005.webm"
                 },
                 {
-                    id: "snow-created-5",
+                    id: "audit-trail-5",
                     type: "json",
-                    label: "ServiceNow Ticket Created",
+                    label: "Process Audit Trail",
                     data: {
-                        ticket_id: "INC-2026-04891",
-                        action: "CREATED",
-                        category: "Procurement — Vendor Coordination",
-                        description: "PR-2026-01203 approved for Thermo Fisher Scientific, USD 67,850. Tracking PO generation.",
-                        assigned_to: "US Procurement Team",
-                        priority: "Medium",
-                        timestamp: "2026-03-26T10:16:00Z"
+                        process_id: "FPR_005",
+                        pr_id: "PR-2026-01203",
+                        servicenow_ticket: "INC-2026-04891",
+                        started: "2026-03-26T09:30:00Z",
+                        completed: "2026-03-26T10:16:00Z",
+                        outcome: "APPROVED",
+                        systems_accessed: ["ServiceNow", "SAP Ariba"],
+                        attachments_processed: 1,
+                        validations: { run: 14, passed: 14, failed: 0 },
+                        hitl_gates: 0,
+                        sap_ariba_status: "Approved",
+                        servicenow_status: "Resolved"
                     }
                 }
             ]
-        },
-        // STEP 11: Update Ferring Supplier Master
-        {
-            id: "step-11",
-            title_p: "Updating Ferring Supplier Master — logging successful validation for Thermo Fisher...",
-            title_s: "Supplier Master updated — SUP-90312 (Thermo Fisher): PR-2026-01203 approved, clean validation",
-            reasoning: [
-                "Opened Ferring Supplier Master portal",
-                "Located supplier record SUP-90312 (Thermo Fisher Scientific)",
-                "Added validation log: \"PR-2026-01203 — all 14 checks passed, auto-approved\"",
-                "Supplier compliance score: Updated (maintained A-rating)",
-                "ServiceNow reference: INC-2026-04891",
-                "Last successful validation: " + new Date().toISOString().split("T")[0]
-            ]
-        },
-        // STEP 12: Audit trail
-        {
-            id: "step-12",
-            title_p: "Finalizing audit trail...",
-            title_s: "Process complete — PR-2026-01203 approved with full downstream updates",
-            reasoning: [
-                "Processing duration: 48 seconds",
-                "Systems accessed: SAP Ariba (PR-2026-01203), ServiceNow (INC-2026-04891), Ferring Supplier Master (SUP-90312)",
-                "Downstream updates: ServiceNow ticket created, Supplier Master updated",
-                "Validations: 14 run, 14 passed",
-                "HITL gates: 0 — full auto-approve path",
-                "ServiceNow ticket: Resolved",
-                "SAP Ariba PR: Approved"
-            ]
         }
+
     ];
 
     for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         const isFinal = i === steps.length - 1;
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        updateProcessLog(PROCESS_ID, {
-            id: step.id,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            title: step.title_p,
-            status: 'processing'
-        });
+        updateProcessLog(PROCESS_ID, { id: step.id, time: timeStr, title: step.title_p, status: 'processing' });
         await updateProcessListStatus(PROCESS_ID, 'In Progress', step.title_p);
         await delay(2000);
 
@@ -417,5 +426,6 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
         await updateProcessListStatus(PROCESS_ID, isFinal ? 'Done' : 'In Progress', step.title_s);
         await delay(1500);
     }
+
     console.log(`${PROCESS_ID} Complete: ${CASE_NAME}`);
 })();

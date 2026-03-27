@@ -43,51 +43,44 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
     }
 };
 
-// Per-process HITL: polls /hitl/FPR_002 until action='send' or 'reject'
-const waitForHITL = async () => {
-    console.log("FPR_002: Waiting for HITL action (send or reject)...");
-    const API_URL = process.env.VITE_API_URL || 'http://localhost:3001';
-    try {
-        await fetch(`${API_URL}/hitl/FPR_002`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pending: true, action: null })
-        });
-    } catch (e) {}
-    try {
-        await fetch(`${API_URL}/email-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sent: false })
-        });
-    } catch (e) {}
+const pollHitl = async (processId) => {
+    const apiUrl = process.env.VITE_API_URL || 'http://localhost:3001';
     while (true) {
         try {
-            const r = await fetch(`${API_URL}/hitl/FPR_002`);
-            const d = await r.json();
-            if (d.action === 'send') { console.log("FPR_002: HITL resolved → send"); return 'send'; }
-            if (d.action === 'reject') { console.log("FPR_002: HITL resolved → reject"); return 'reject'; }
-        } catch (e) {}
+            const r = await fetch(`${apiUrl}/hitl/${processId}`);
+            const data = await r.json();
+            if (!data.pending && data.action) return data.action;
+        } catch(e) {}
         await delay(2000);
     }
+};
+
+const setHitlPending = async (processId) => {
+    const apiUrl = process.env.VITE_API_URL || 'http://localhost:3001';
+    try {
+        await fetch(`${apiUrl}/hitl/${processId}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pending: true })
+        });
+    } catch(e) {}
 };
 
 (async () => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
 
     const steps = [
-        // STEP 1: SAP Ariba login + navigate to PR
+
+        // ── STAGE 1: Regional Queue Management ──────────────────────────────
         {
             id: "step-1",
-            title_p: "Desktop agent connecting to SAP Ariba...",
-            title_s: "Connected to SAP Ariba — navigating to PR-2026-00912",
+            title_p: "Accessing SAP Ariba pending approvals queue...",
+            title_s: "SAP Ariba queue: 4 pending PRs found — selected PR-2026-00912 (FIFO)",
             reasoning: [
-                "Logged in as pace.agent@ferring.com",
-                "Session established (SESS-2026-03-26-0312)",
-                "Navigating to Manage → Purchase Requisitions",
-                "Searched for PR-2026-00912 in pending approvals queue",
-                "PR-2026-00912 located — status: Pending Approval",
-                "Opening PR detail view"
+                "Agent accesses SAP Ariba as pace.agent@ferring.com",
+                "Queried pending approvals for Zamp.ai_test — 4 PRs in queue",
+                "FIFO selection: oldest unprocessed PR is PR-2026-00912 (created 2026-03-18)",
+                "PR-2026-00912: Bachem AG, USD 45,800.00, Company Code 2100, India region",
+                "Selected PR-2026-00912 for processing"
             ],
             artifacts: [
                 {
@@ -98,21 +91,24 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 2: Read PR header fields
+
+        // ── STAGE 2: Authentication and PR Retrieval ─────────────────────────
         {
             id: "step-2",
-            title_p: "Reading PR-2026-00912 header fields...",
-            title_s: "PR data extracted — Bachem AG, USD 45,800.00, India region",
+            title_p: "Authenticating to SAP Ariba and retrieving PR details...",
+            title_s: "Connected to SAP Ariba — PR-2026-00912 opened, Bachem AG, USD 45,800.00",
             reasoning: [
+                "Authenticated as pace.agent@ferring.com — session established (SESS-2026-03-26-0312)",
+                "Navigated to Manage → Purchase Requisitions",
+                "Opened PR-2026-00912 detail view — status: Pending Approval",
                 "Read Requester: Rajesh Krishnamurthy",
                 "Read Budget Owner: Dr. Priya Nair",
                 "Read Company Code: 2100 (Ferring Pharmaceuticals Pvt Ltd)",
+                "Read PO Owner: Rajesh Krishnamurthy",
                 "Read Cost Center: CC-MFG-IN-092",
-                "Read Currency: USD",
-                "Read Total Amount: USD 45,800.00",
+                "Read Currency: USD — Total Amount: USD 45,800.00",
                 "Read Supplier: Bachem AG (Supplier ID: SUP-72103)",
-                "Read PR creation date: 2026-03-18",
-                "Read Region: India (APAC)"
+                "Read Region: India (APAC) — PR date: 2026-03-18"
             ],
             artifacts: [
                 {
@@ -129,27 +125,32 @@ const waitForHITL = async () => {
                         cost_center: "CC-MFG-IN-092",
                         currency: "USD",
                         total_amount: "45,800.00",
-                        supplier_on_pr: "Bachem AG",
+                        supplier: "Bachem AG",
                         supplier_id: "SUP-72103",
                         region: "India (APAC)",
                         pr_date: "2026-03-18",
+                        line_items_count: 3,
                         status: "Pending Approval"
                     }
                 }
             ]
         },
-        // STEP 3: Extract line items
+
+        // ── STAGE 3: Data Extraction and Transformation ──────────────────────
         {
             id: "step-3",
-            title_p: "Opening line items tab and reading each item...",
-            title_s: "3 line items extracted — total matches PR header",
+            title_p: "Extracting PR data — header fields, line items, and supplier enrichment...",
+            title_s: "3 line items extracted — USD 45,800.00 total, supplier enriched via Supplier Master",
             reasoning: [
-                "Clicked 'Line Items' tab in PR detail view",
-                "Line 1: Fmoc-Val-OH — 500g × USD 38.40 = USD 19,200.00",
-                "Line 2: Boc-Pro-OH — 250g × USD 72.00 = USD 18,000.00",
-                "Line 3: Custom Peptide Synthesis — 1 LOT × USD 8,600.00 = USD 8,600.00",
-                "Sum: USD 19,200 + USD 18,000 + USD 8,600 = USD 45,800.00 — matches PR total",
-                "All 3 line items reference Material Group: MG-API-002"
+                "Clicked Line Items tab in PR detail view",
+                "Line 1: Fmoc-Val-OH (Peptide Building Block) — 500g × USD 38.40 = USD 19,200.00, MG-API-002",
+                "Line 2: Boc-Pro-OH (Amino Acid Derivative) — 250g × USD 72.00 = USD 18,000.00, MG-API-002",
+                "Line 3: Custom Peptide Synthesis — 1 LOT × USD 8,600.00 = USD 8,600.00, MG-API-002",
+                "Sum check: USD 19,200 + USD 18,000 + USD 8,600 = USD 45,800.00 — matches PR header ✓",
+                "Supplier Master enrichment: looked up SUP-72103 in master DB",
+                "Retrieved registered name: 'Bachem AG', status: Active, ordering method: EMAIL (orders@bachem.com)",
+                "Retrieved payment terms: Net 30, region: EMEA, registration date: 2019-01-15",
+                "Supplier status confirmed: Active — no purchasing blocks, no compliance flags"
             ],
             artifacts: [
                 {
@@ -162,22 +163,35 @@ const waitForHITL = async () => {
                             { line: "2", description: "Boc-Pro-OH (Amino Acid Derivative)", qty: "250g", unit_price: "USD 72.00", total: "USD 18,000.00", material_group: "MG-API-002" },
                             { line: "3", description: "Custom Peptide Synthesis — 1 LOT", qty: "1 LOT", unit_price: "USD 8,600.00", total: "USD 8,600.00", material_group: "MG-API-002" }
                         ],
-                        sum_check: "USD 45,800.00 = PR total ✓"
+                        sum_check: "USD 45,800.00 = PR header total ✓",
+                        supplier_enrichment: {
+                            supplier_id: "SUP-72103",
+                            registered_name: "Bachem AG",
+                            status: "Active",
+                            ordering_method: "EMAIL",
+                            ordering_email: "orders@bachem.com",
+                            payment_terms: "Net 30",
+                            region: "EMEA",
+                            registration_date: "2019-01-15",
+                            purchasing_blocks: "None",
+                            compliance_flags: "None"
+                        }
                     }
                 }
             ]
         },
-        // STEP 4: Download + classify attachment
+
+        // ── STAGE 4: Attachment Processing (Validation 1/14) ─────────────────
         {
             id: "step-4",
-            title_p: "Downloading attachment from PR-2026-00912...",
+            title_p: "Checking attachments tab — downloading and classifying documents...",
             title_s: "Validation 1/14: Invoice identified (confidence: 0.92) — downloaded",
             reasoning: [
-                "Clicked 'Attachments' tab in PR detail view",
+                "Clicked Attachments tab in PR detail view",
                 "Found 1 attachment: Bachem_Invoice_INV-2026-BH-11472.pdf (2 pages, 287KB)",
                 "Document classification model applied",
-                "Document type: Invoice (confidence: 0.92)",
-                "Downloaded to processing queue for extraction"
+                "Document type: Invoice — confidence: 0.92",
+                "Downloaded to processing queue for structured data extraction"
             ],
             artifacts: [
                 {
@@ -188,188 +202,172 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 5: Extract data from invoice
+
+        // ── STAGE 5: Structured Data Extraction from Document ────────────────
         {
             id: "step-5",
             title_p: "Extracting structured data from invoice...",
-            title_s: "Data extracted — ALERT: Supplier name and amount discrepancies detected",
+            title_s: "Structured data extracted — ALERT: supplier name and amount discrepancies detected",
             reasoning: [
-                "Extracted Supplier: Bachem Holding AG (invoice) vs Bachem AG (PR) — NAME MISMATCH",
-                "Extracted Amount: USD 48,200.00 (invoice) vs USD 45,800.00 (PR) — PRICE MISMATCH (+USD 2,400, 5.24%)",
+                "Extracted Supplier Name: 'Bachem Holding AG' (invoice) vs 'Bachem AG' (PR) — NAME MISMATCH",
+                "Extracted Invoice Amount: USD 48,200.00 (invoice) vs USD 45,800.00 (PR) — PRICE MISMATCH (+USD 2,400 / +5.24%)",
                 "Extracted Invoice No: INV-2026-BH-11472",
                 "Extracted Invoice Date: 18 March 2026",
                 "Extracted Payment Terms: Net 30",
-                "Extracted Bank: UBS AG, Account ending -4821"
+                "Extracted Bank: UBS AG, account ending -4821",
+                "Key findings: supplier entity name differs; invoice total exceeds PR by 5.24%"
             ],
             artifacts: [
                 {
                     id: "extracted-2",
                     type: "json",
-                    label: "Extracted Invoice Data (with mismatches)",
+                    label: "Extracted Invoice Data (with discrepancies)",
                     data: {
                         invoice_no: "INV-2026-BH-11472",
                         invoice_date: "2026-03-18",
                         supplier_on_invoice: "Bachem Holding AG",
                         supplier_on_pr: "Bachem AG",
-                        supplier_match: "MISMATCH — name differs",
+                        supplier_match: "MISMATCH — entity name differs",
                         invoice_amount: "USD 48,200.00",
                         pr_amount: "USD 45,800.00",
-                        price_variance: "+USD 2,400.00 (5.24%)",
-                        price_match: "MISMATCH — invoice exceeds PR",
+                        price_variance: "+USD 2,400.00 (+5.24%)",
+                        price_match: "MISMATCH — invoice exceeds PR by 5.24%",
                         payment_terms: "Net 30",
-                        currency: "USD"
+                        currency: "USD",
+                        bank: "UBS AG, account ending -4821"
                     }
                 }
             ]
         },
-        // STEP 6: Cross-check Supplier Master
+
+        // ── STAGE 6a: Comprehensive Validation V2–V8 ─────────────────────────
         {
-            id: "step-6",
-            title_p: "Desktop agent opening Ferring Supplier Master to verify supplier identity...",
-            title_s: "Supplier Master confirms: 'Bachem AG' (SUP-72103) is registered — 'Bachem Holding AG' is NOT",
+            id: "step-6a",
+            title_p: "Running validation domains 2–8...",
+            title_s: "Validations 2–5 PASS — V6 Supplier FAIL — V7 Pricing FAIL — V8 PASS",
             reasoning: [
-                "Opened Ferring Supplier Master portal",
-                "Searched for 'Bachem' — found 1 active record: SUP-72103: Bachem AG (Active, EMEA)",
-                "No record found for 'Bachem Holding AG'",
-                "Note: Bachem Holding AG is the parent company; Bachem AG is the registered trading entity",
-                "Supplier name on invoice does NOT match any registered supplier name",
-                "Supplier ID SUP-72103 is verified as 'Bachem AG' — invoices must use this exact name"
+                "V2 Accounting: Assignment K, Cost Center CC-MFG-IN-092, GL 41200500 — consistent ✓ PASS",
+                "V3 Budget Owner: Dr. Priya Nair ≠ Rajesh Krishnamurthy (requester) — segregation confirmed ✓ PASS",
+                "V4 Currency: USD consistent across PR, line items, and invoice ✓ PASS",
+                "V5 Material Group: MG-API-002 present in approved master list ✓ PASS",
+                "V6 Supplier: FAIL — invoice shows 'Bachem Holding AG'; Supplier Master SUP-72103 is registered as 'Bachem AG'; no record exists for 'Bachem Holding AG'",
+                "V7 Pricing: FAIL — invoice USD 48,200.00 vs PR USD 45,800.00; variance +5.24% exceeds ±3% tolerance",
+                "V8 Service Type: SAC 998599 valid for peptide/API materials ✓ PASS"
             ],
             artifacts: [
                 {
-                    id: "v-supplier-master-2",
-                    type: "video",
-                    label: "Ferring Supplier Master: Bachem lookup",
-                    videoPath: "/data/supplier_master_fpr002.webm"
-                },
-                {
-                    id: "supplier-master-result-2",
+                    id: "val-v2-v8-2",
                     type: "json",
-                    label: "Supplier Master Lookup Result",
+                    label: "Validation Results V2–V8",
                     data: {
-                        search_term: "Bachem",
-                        results: [
-                            { supplier_id: "SUP-72103", name: "Bachem AG", status: "Active", registration_date: "2019-01-15", entity_type: "Trading Entity", region: "EMEA" }
-                        ],
-                        searched_for: "Bachem Holding AG",
-                        found: false,
-                        conclusion: "Bachem Holding AG is NOT a registered supplier. Bachem AG (SUP-72103) is the correct registered entity."
+                        V2_Accounting: "PASS",
+                        V3_BudgetOwner: "PASS",
+                        V4_Currency: "PASS",
+                        V5_MaterialGroup: "PASS",
+                        V6_SupplierID: { result: "FAIL", detail: "Invoice: Bachem Holding AG | Supplier Master SUP-72103: Bachem AG — no record for Bachem Holding AG" },
+                        V7_Pricing: { result: "FAIL", detail: "Invoice: USD 48,200.00 | PR: USD 45,800.00 | Variance: +USD 2,400.00 (+5.24%) | Threshold: ±3%" },
+                        V8_ServiceType: "PASS"
                     }
                 }
             ]
         },
-        // STEP 7: Run validation suite V2–V14
+
+        // ── STAGE 6b: Comprehensive Validation V9–V14 ────────────────────────
+        {
+            id: "step-6b",
+            title_p: "Running validation domains 9–14...",
+            title_s: "Validations 9–14 all PASS — overall result: FAIL (V6 Supplier, V7 Pricing)",
+            reasoning: [
+                "V9 Ordering Method: EMAIL, orders@bachem.com — valid per Supplier Master ✓ PASS",
+                "V10 Ship-To: SHIP-IN-003 linked to entity 2100 (Ferring Pharmaceuticals Pvt Ltd) ✓ PASS",
+                "V11 Sold-To: 2100 = 2100 — exact match ✓ PASS",
+                "V12 Company Code: Ferring Pharmaceuticals Pvt Ltd, confidence 0.99 ✓ PASS",
+                "V13 Quantity: all 3 line items verified at Level 2 (sum and unit checks) ✓ PASS",
+                "V14 Deliver-To: Ferring API Manufacturing, Plot 47, Bangalore — valid for CC-MFG-IN-092 ✓ PASS",
+                "Overall: 11 PASS, 2 FAIL (V6 Supplier Name, V7 Pricing), 1 informational (V3 Budget Owner segregation noted)"
+            ],
+            artifacts: [
+                {
+                    id: "val-v9-v14-2",
+                    type: "json",
+                    label: "Validation Results V9–V14 + Scorecard",
+                    data: {
+                        V9_OrderingMethod: "PASS",
+                        V10_ShipTo: "PASS",
+                        V11_SoldTo: "PASS",
+                        V12_CompanyCode: "PASS",
+                        V13_Quantity: "PASS",
+                        V14_DeliverTo: "PASS",
+                        scorecard: {
+                            overall_status: "FAIL",
+                            total: 14, passed: 11, failed: 2, informational: 1,
+                            failures: [
+                                { check: "V6 Supplier Name", result: "FAIL", detail: "Invoice: Bachem Holding AG | PR/Master: Bachem AG — entity not registered" },
+                                { check: "V7 Pricing", result: "FAIL", detail: "Invoice: USD 48,200.00 | PR: USD 45,800.00 | Variance: +5.24% (threshold ±3%)" }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+
+        // ── STAGE 7: Draft Correction Email ──────────────────────────────────
         {
             id: "step-7",
-            title_p: "Running comprehensive validation suite (14 domains)...",
-            title_s: "Validations complete — 11 PASS, 1 FAIL (Pricing), 1 FAIL (Supplier Name), 1 informational",
+            title_p: "Overall status: FAIL — drafting correction email to vendor...",
+            title_s: "2 critical issues identified — correction email drafted for both supplier name and pricing",
             reasoning: [
-                "V1 Attachment: Invoice identified, confidence 0.92 — PASS",
-                "V2 Accounting: Assignment K, CC-MFG-IN-092, GL 41200500 — PASS",
-                "V3 Budget Owner: Dr. Priya Nair ≠ Rajesh Krishnamurthy (requester) — PASS",
-                "V4 Currency: USD matches throughout PR and invoice — PASS",
-                "V5 Material Group: MG-API-002 valid in approved master list — PASS",
-                "V6 Supplier: FAIL — Invoice 'Bachem Holding AG' vs PR 'Bachem AG'; Supplier Master confirms 'Bachem AG' is correct registered entity",
-                "V7 Pricing: FAIL — Invoice USD 48,200 vs PR USD 45,800 (variance +5.24%, threshold ±3%)",
-                "V8 Service Type: SAC 998599 valid — PASS",
-                "V9 Ordering: EMAIL method, orders@bachem.com valid — PASS",
-                "V10 Ship-To: SHIP-IN-003 linked to entity 2100 — PASS",
-                "V11 Sold-To: 2100 = 2100 — PASS",
-                "V12 Company Code: Ferring Pharmaceuticals Pvt Ltd, confidence 0.99 — PASS",
-                "V13 Quantity: All 3 line items match at Level 2 — PASS",
-                "V14 Deliver-To: Ferring API Manufacturing, Plot 47, Bangalore — PASS"
-            ],
-            artifacts: [
-                {
-                    id: "validation-scorecard-2",
-                    type: "json",
-                    label: "Validation Scorecard",
-                    data: {
-                        overall_status: "FAIL",
-                        total: 14, passed: 11, failed: 2, informational: 1,
-                        failures: [
-                            { check: "V6 Supplier Name", result: "FAIL", detail: "Invoice: Bachem Holding AG | PR/Master: Bachem AG" },
-                            { check: "V7 Pricing", result: "FAIL", detail: "Invoice: USD 48,200 | PR: USD 45,800 | Variance: +5.24%" }
-                        ],
-                        informational: [{ check: "V3 Budget Owner", note: "Dr. Priya Nair is budget owner — distinct from requester Rajesh Krishnamurthy ✓" }]
-                    }
-                }
+                "Issue 1 (Critical): Supplier name mismatch — invoice from 'Bachem Holding AG', registered entity is 'Bachem AG' (SUP-72103)",
+                "Issue 2 (Critical): Pricing variance — invoice USD 48,200.00 exceeds PR USD 45,800.00 by USD 2,400.00 (+5.24%); threshold is ±3%",
+                "Action: drafting correction email to orders@bachem.com requesting reissued invoice addressing both issues",
+                "Email copied to requester Rajesh Krishnamurthy and procurement-india@ferring.com",
+                "Awaiting procurement team approval before sending"
             ]
         },
-        // STEP 8: Generate gap analysis
+
+        // ── STAGE 8: HITL Gate 1 — Approve correction email ──────────────────
         {
             id: "step-8",
-            title_p: "Generating validation summary and gap analysis...",
-            title_s: "Overall status: FAIL — 2 critical issues require vendor correction",
-            reasoning: [
-                "Issue 1 (Critical): Supplier name mismatch — invoice from 'Bachem Holding AG' but registered supplier is 'Bachem AG' per Supplier Master SUP-72103",
-                "Issue 2 (Critical): Pricing variance — invoice USD 48,200 exceeds PR amount USD 45,800 by USD 2,400 (5.24%) — exceeds ±3% tolerance",
-                "Recommendation: Draft email to vendor requesting corrected invoice with both issues addressed",
-                "Note: Supplier name correction alone is insufficient — pricing must also be resolved"
-            ],
-            artifacts: [
-                {
-                    id: "gap-analysis-2",
-                    type: "json",
-                    label: "Gap Analysis Summary",
-                    data: {
-                        pr_id: "PR-2026-00912",
-                        overall_status: "FAIL",
-                        issues: [
-                            { id: "ISSUE-1", severity: "Critical", type: "Supplier Name Mismatch", description: "Invoice shows 'Bachem Holding AG'; Ferring Supplier Master requires 'Bachem AG' (SUP-72103)" },
-                            { id: "ISSUE-2", severity: "Critical", type: "Pricing Variance", description: "Invoice USD 48,200.00 exceeds PR USD 45,800.00 by USD 2,400 (+5.24%)" }
-                        ],
-                        recommended_action: "Email vendor requesting corrected invoice addressing both issues"
-                    }
-                }
-            ]
-        }
-    ];
-
-    // STEPS 9-14 defined separately to keep code clear
-    const hitlSteps = [
-        // STEP 9: HITL GATE 1 — Email to vendor
-        {
-            id: "step-9",
-            hitl: "email",
+            hitl: true,
             hitl_gate: 1,
-            title_p: "Drafting email to vendor requesting corrected invoice...",
-            title_s: "Email draft ready — awaiting approval to send",
+            title_p: "Requesting approval to send correction email to Bachem AG...",
+            title_s: "Correction email ready — awaiting approval to send",
             reasoning: [
                 "Email to: orders@bachem.com",
                 "CC: rajesh.krishnamurthy@ferring.com, procurement-india@ferring.com",
                 "Subject: Correction Required — Invoice INV-2026-BH-11472 for PR-2026-00912",
-                "Body includes both discrepancies: supplier name + pricing",
-                "Requests corrected invoice with Bachem AG as supplier and amount aligned to PR",
+                "Body details both issues: supplier entity name and pricing variance",
+                "Requests corrected invoice with 'Bachem AG' as entity and amount aligned to USD 45,800.00",
                 "Awaiting procurement team approval to send"
             ],
             artifacts: [
                 {
                     id: "email-draft-2-gate1",
                     type: "email_draft",
-                    label: "Email Draft: Vendor Correction Request",
+                    label: "Email Draft: Vendor Correction Request (Gate 1)",
                     data: {
                         isIncoming: false,
                         to: "orders@bachem.com",
                         cc: "rajesh.krishnamurthy@ferring.com, procurement-india@ferring.com",
                         subject: "Correction Required — Invoice INV-2026-BH-11472 for PR-2026-00912",
-                        body: "Dear Bachem AG Team,\n\nWe have received Invoice INV-2026-BH-11472 dated 18 March 2026 in connection with Purchase Requisition PR-2026-00912 (Ferring Pharmaceuticals Pvt Ltd, India).\n\nOur automated validation has identified two issues that must be corrected before this invoice can be approved:\n\n1. SUPPLIER NAME DISCREPANCY:\n   - Invoice issued by: Bachem Holding AG\n   - Registered supplier in Ferring Supplier Master: Bachem AG (ID: SUP-72103)\n   Please reissue the invoice with the correct legal entity name 'Bachem AG' to match our supplier registration.\n\n2. PRICING DISCREPANCY:\n   - Invoice amount: USD 48,200.00\n   - PR-2026-00912 approved amount: USD 45,800.00\n   - Variance: USD 2,400.00 (+5.24%)\n   Please reissue at USD 45,800.00 or provide supporting documentation for the difference.\n\nKindly reissue a corrected invoice addressing both points and reply to this email. Processing will resume upon receipt.\n\nBest regards,\nFerring Procurement Automation Team\nprocurement-india@ferring.com"
+                        body: "Dear Bachem AG Team,\n\nWe have received Invoice INV-2026-BH-11472 dated 18 March 2026 in connection with Purchase Requisition PR-2026-00912 (Ferring Pharmaceuticals Pvt Ltd, India).\n\nOur automated validation has identified two issues that must be corrected before this invoice can be approved:\n\n1. SUPPLIER NAME DISCREPANCY:\n   Invoice issued by: Bachem Holding AG\n   Registered supplier in Ferring Supplier Master: Bachem AG (ID: SUP-72103)\n   Please reissue the invoice with the correct legal entity name 'Bachem AG'.\n\n2. PRICING DISCREPANCY:\n   Invoice amount: USD 48,200.00\n   PR-2026-00912 approved amount: USD 45,800.00\n   Variance: USD 2,400.00 (+5.24%)\n   Please reissue at USD 45,800.00 or provide supporting documentation for the difference.\n\nKindly reissue a corrected invoice addressing both points and reply to this email.\n\nBest regards,\nFerring Procurement Automation Team\nprocurement-india@ferring.com"
                     }
                 }
             ]
         },
-        // STEP 10: Vendor response received
+
+        // ── Post Gate 1: Vendor response ─────────────────────────────────────
         {
-            id: "step-10",
+            id: "step-8b",
             title_p: "Monitoring inbox for vendor response...",
             title_s: "Vendor response received — updated invoice attached",
             reasoning: [
                 "Email received from orders@bachem.com at 14:32 UTC",
                 "Subject: RE: Correction Required — Invoice INV-2026-BH-11472",
-                "Vendor states: 'We have corrected the supplier name to Bachem AG as per your registration records. Please find updated invoice INV-2026-BH-11472-v2 attached.'",
-                "Vendor note: 'Regarding the price difference — our cost base for the Custom Peptide Synthesis LOT has increased. We are unable to reduce below USD 48,200.'",
-                "Attachment: Bachem_Invoice_INV-2026-BH-11472_v2.pdf (2 pages, 291KB)",
-                "Downloading updated invoice to processing queue"
+                "Vendor confirms: corrected supplier name to 'Bachem AG' as per Ferring registration",
+                "Vendor note: unable to reduce price below USD 48,200.00 — raw material costs have increased",
+                "Attachment: Bachem_Invoice_INV-2026-BH-11472_v2.pdf (2 pages, 291KB) — downloaded",
+                "Proceeding to re-validate updated invoice"
             ],
             artifacts: [
                 {
@@ -381,104 +379,81 @@ const waitForHITL = async () => {
                         from: "orders@bachem.com",
                         to: "procurement-india@ferring.com",
                         subject: "RE: Correction Required — Invoice INV-2026-BH-11472",
-                        body: "Dear Ferring Procurement Team,\n\nThank you for your message. We have corrected the supplier name on the invoice from 'Bachem Holding AG' to 'Bachem AG' as per your supplier registration records.\n\nRegarding the pricing: unfortunately we are unable to reduce the invoice amount below USD 48,200.00. Our raw material costs for the Custom Peptide Synthesis lot have increased and this is reflected in the invoice. We have attached the updated invoice INV-2026-BH-11472-v2 with the corrected supplier name.\n\nPlease let us know if you require further documentation.\n\nBest regards,\nBachem AG — Order Management\norders@bachem.com"
+                        body: "Dear Ferring Procurement Team,\n\nThank you for your message. We have corrected the supplier name on the invoice from 'Bachem Holding AG' to 'Bachem AG' as per your supplier registration records.\n\nRegarding the pricing: unfortunately we are unable to reduce the invoice amount below USD 48,200.00. Our raw material costs for the Custom Peptide Synthesis lot have increased and this is reflected in the invoice. Please find attached the updated invoice INV-2026-BH-11472-v2 with the corrected supplier name.\n\nBest regards,\nBachem AG — Order Management\norders@bachem.com"
                     }
                 }
             ]
         },
-        // STEP 11: Update Supplier Master with vendor communication log
+
+        // ── Re-validate updated invoice ───────────────────────────────────────
         {
-            id: "step-11",
-            title_p: "Updating Ferring Supplier Master with vendor communication log...",
-            title_s: "Supplier Master updated — SUP-72103 (Bachem AG): correction request logged",
+            id: "step-8c",
+            title_p: "Re-validating updated invoice from Bachem AG...",
+            title_s: "Re-validation: V6 Supplier FIXED ✓ — V7 Pricing STILL FAIL (USD 48,200 vs USD 45,800)",
             reasoning: [
-                "Opened Ferring Supplier Master portal",
-                "Located supplier record SUP-72103 (Bachem AG)",
-                "Added communication log entry: \"Invoice correction requested — entity name mismatch (Bachem Holding AG vs Bachem AG) and pricing variance (+5.24%)\"",
-                "Set vendor communication status: Awaiting Response",
-                "Log timestamp: " + new Date().toISOString()
-            ]
-        },
-        // STEP 12: Re-validate updated invoice
-        {
-            id: "step-12",
-            title_p: "Extracting data from updated invoice and re-validating...",
-            title_s: "Updated invoice: Supplier name FIXED ✓ — Price STILL MISMATCHED ✗ (USD 48,200 vs USD 45,800)",
-            reasoning: [
-                "Updated Invoice Supplier: Bachem AG — NOW MATCHES PR and Supplier Master ✓",
-                "Updated Invoice Amount: USD 48,200.00 — STILL EXCEEDS PR by USD 2,400 (5.24%) ✗",
-                "Re-running validation suite on updated invoice...",
-                "Re-validation V6 Supplier: PASS — 'Bachem AG' matches Supplier Master SUP-72103",
-                "Re-validation V7 Pricing: FAIL — amount USD 48,200 still exceeds PR USD 45,800 by 5.24%",
-                "Overall result: STILL FAIL — supplier name corrected but pricing discrepancy persists"
+                "Re-validation V6 Supplier: PASS — updated invoice now shows 'Bachem AG' matching SUP-72103 ✓",
+                "Re-validation V7 Pricing: FAIL — amount USD 48,200.00 unchanged; still exceeds PR by USD 2,400.00 (+5.24%)",
+                "Net result: 1 issue resolved (supplier name), 1 issue persists (pricing variance)",
+                "PR cannot be approved — pricing variance exceeds ±3% policy threshold",
+                "Next action: formal rejection of PR-2026-00912, notify vendor and requester"
             ],
             artifacts: [
                 {
-                    id: "revalidation-comparison-2",
+                    id: "revalidation-2",
                     type: "json",
-                    label: "Before/After Validation Comparison",
+                    label: "Re-validation Comparison (v1 vs v2 invoice)",
                     data: {
-                        v6_supplier: { before: "FAIL (Bachem Holding AG)", after: "PASS (Bachem AG — matches SUP-72103)", changed: true },
-                        v7_pricing: { before: "FAIL (USD 48,200 vs USD 45,800)", after: "FAIL (USD 48,200 vs USD 45,800 — unchanged)", changed: false },
-                        overall: { before: "FAIL (2 issues)", after: "FAIL (1 issue remains)", net_resolved: 1, net_remaining: 1 },
-                        conclusion: "Pricing discrepancy of USD 2,400 (+5.24%) unresolved — PR cannot proceed"
+                        V6_Supplier: { v1: "FAIL (Bachem Holding AG)", v2: "PASS (Bachem AG — matches SUP-72103)", resolved: true },
+                        V7_Pricing: { v1: "FAIL (USD 48,200 vs USD 45,800)", v2: "FAIL (USD 48,200 vs USD 45,800 — unchanged)", resolved: false },
+                        overall: { v1: "FAIL (2 issues)", v2: "FAIL (1 issue remains)", net_resolved: 1, net_remaining: 1 },
+                        conclusion: "Pricing discrepancy of USD 2,400.00 (+5.24%) unresolved — PR cannot proceed"
                     }
                 }
             ]
         },
-        // STEP 12: HITL GATE 2 — Final rejection email
+
+        // ── STAGE 8b: HITL Gate 2 — Approve rejection email ──────────────────
         {
-            id: "step-13",
-            hitl: "email",
+            id: "step-9",
+            hitl: true,
             hitl_gate: 2,
-            title_p: "Drafting final rejection email with specific pricing justification...",
-            title_s: "Rejection email drafted — awaiting approval to send",
+            title_p: "Drafting final rejection email — awaiting approval to send...",
+            title_s: "Rejection email ready — awaiting approval to send",
             reasoning: [
-                "Email to: orders@bachem.com, rajesh.krishnamurthy@ferring.com",
+                "Email to: orders@bachem.com",
+                "CC: rajesh.krishnamurthy@ferring.com, procurement-india@ferring.com",
                 "Subject: PR-2026-00912 REJECTED — Pricing Discrepancy Unresolved",
-                "Acknowledges supplier name fix (thank you)",
-                "States clearly: USD 48,200 still exceeds PR USD 45,800 by USD 2,400 (5.24%)",
-                "Explains: PR must be amended or invoice must match before processing can continue",
-                "Awaiting approval to send final rejection"
+                "Acknowledges supplier name correction in v2 invoice",
+                "States clearly: USD 48,200.00 still exceeds PR USD 45,800.00 by USD 2,400.00 (+5.24%)",
+                "Options: reissue at USD 45,800.00, or requester submits amended PR with business justification",
+                "Awaiting procurement team approval to send final rejection"
             ],
             artifacts: [
                 {
                     id: "email-draft-2-gate2",
                     type: "email_draft",
-                    label: "Email Draft: Final Rejection Notice",
+                    label: "Email Draft: Final Rejection Notice (Gate 2)",
                     data: {
                         isIncoming: false,
                         to: "orders@bachem.com",
                         cc: "rajesh.krishnamurthy@ferring.com, procurement-india@ferring.com",
                         subject: "PR-2026-00912 REJECTED — Pricing Discrepancy Unresolved",
-                        body: "Dear Bachem AG Team,\n\nThank you for reissuing Invoice INV-2026-BH-11472-v2 with the corrected supplier name. The supplier name now matches our records (Bachem AG, SUP-72103).\n\nHowever, we are unable to approve Purchase Requisition PR-2026-00912 at this time. The pricing discrepancy remains unresolved:\n\n   Invoice Amount (v2): USD 48,200.00\n   PR-2026-00912 Amount: USD 45,800.00\n   Variance: USD 2,400.00 (+5.24%)\n\nFerring's procurement policy requires invoice amounts to be within ±3% of the approved PR amount. The current variance of 5.24% exceeds this threshold.\n\nPR-2026-00912 has been formally REJECTED in SAP Ariba. To proceed, one of the following actions is required:\n   a) Reissue the invoice at USD 45,800.00, or\n   b) Requester Rajesh Krishnamurthy submits an amended PR for USD 48,200.00 with business justification for the cost increase.\n\nReference: Validation run FPR-002 | Rejection timestamp: 2026-03-26T14:45:00Z\n\nBest regards,\nFerring Procurement Automation Team\nprocurement-india@ferring.com"
+                        body: "Dear Bachem AG Team,\n\nThank you for reissuing Invoice INV-2026-BH-11472-v2 with the corrected supplier name. The name now matches our records (Bachem AG, SUP-72103).\n\nHowever, we are unable to approve Purchase Requisition PR-2026-00912. The pricing discrepancy remains unresolved:\n\n   Invoice Amount (v2): USD 48,200.00\n   PR-2026-00912 Amount: USD 45,800.00\n   Variance: USD 2,400.00 (+5.24%)\n\nFerring's procurement policy requires invoice amounts to be within ±3% of the approved PR amount. The current variance of 5.24% exceeds this threshold.\n\nPR-2026-00912 has been formally REJECTED in SAP Ariba. To proceed, one of the following actions is required:\n   a) Reissue the invoice at USD 45,800.00, or\n   b) Requester Rajesh Krishnamurthy submits an amended PR for USD 48,200.00 with business justification.\n\nReference: Validation run FPR-002 | Rejection timestamp: 2026-03-26T14:45:00Z\n\nBest regards,\nFerring Procurement Automation Team\nprocurement-india@ferring.com"
                     }
                 }
             ]
         },
-        // STEP 14: Update Supplier Master with rejection flag
+
+        // ── STAGE 9: Reject in SAP Ariba ─────────────────────────────────────
         {
-            id: "step-14",
-            title_p: "Updating Ferring Supplier Master — flagging pricing review for SUP-72103...",
-            title_s: "Supplier Master updated — SUP-72103 flagged for pricing review, vendor notified",
-            reasoning: [
-                "Updated supplier record SUP-72103 (Bachem AG)",
-                "Added flag: Pricing Review Required",
-                "Added note: \"PR-2026-00912 rejected — unresolved pricing variance. Invoice USD 48,200 vs PR USD 45,800 (+5.24%). Supplier corrected entity name but pricing unchanged.\"",
-                "Flag visible to all procurement team members",
-                "Escalation path: Procurement Manager review required for next Bachem AG order"
-            ]
-        },
-        // STEP 15: SAP Ariba rejection
-        {
-            id: "step-15",
-            title_p: "Desktop agent returning to SAP Ariba to reject PR-2026-00912...",
-            title_s: "PR-2026-00912 status changed: Pending → Rejected in SAP Ariba",
+            id: "step-10",
+            title_p: "Rejecting PR-2026-00912 in SAP Ariba...",
+            title_s: "PR-2026-00912 status changed: Pending Approval → Rejected in SAP Ariba",
             reasoning: [
                 "Desktop agent re-authenticated to SAP Ariba (session re-established)",
-                "Searched and opened PR-2026-00912",
-                "Clicked 'Reject' action from approver actions menu",
-                "Typed rejection comment: 'Invoice pricing mismatch: USD 48,200 vs PR USD 45,800 (variance +5.24%, exceeds ±3% threshold). Supplier name corrected in v2 invoice but pricing unresolved. Vendor informed. Reference: Validation run FPR-002.'",
+                "Opened PR-2026-00912 from pending approvals",
+                "Selected 'Reject' from approver actions menu",
+                "Rejection comment: 'Invoice pricing mismatch: USD 48,200.00 vs PR USD 45,800.00 (variance +5.24%, exceeds ±3% threshold). Supplier name corrected in v2 invoice but pricing unresolved. Vendor informed. Reference: Validation run FPR-002.'",
                 "Confirmed rejection — status changed: Pending Approval → Rejected",
                 "System confirmation received (200 OK)"
             ],
@@ -498,7 +473,7 @@ const waitForHITL = async () => {
                         action: "REJECT",
                         status_before: "Pending Approval",
                         status_after: "Rejected",
-                        rejection_comment: "Invoice pricing mismatch: USD 48,200 vs PR USD 45,800 (variance +5.24%, exceeds ±3% threshold). Supplier name corrected in v2 invoice but pricing unresolved. Vendor informed. Reference: Validation run FPR-002.",
+                        rejection_comment: "Invoice pricing mismatch: USD 48,200.00 vs PR USD 45,800.00 (variance +5.24%, exceeds ±3% threshold). Supplier name corrected in v2 invoice but pricing unresolved. Vendor informed. Reference: Validation run FPR-002.",
                         timestamp: "2026-03-26T14:45:33Z",
                         confirmed_by: "Pace Automation Agent",
                         api_response: "200 OK"
@@ -506,17 +481,18 @@ const waitForHITL = async () => {
                 }
             ]
         },
-        // STEP 14: Audit trail
+
+        // ── STAGE 9: Audit Trail ──────────────────────────────────────────────
         {
-            id: "step-16",
+            id: "step-11",
             title_p: "Generating complete audit trail...",
-            title_s: "Process complete — PR-2026-00912 rejected with full audit trail",
+            title_s: "Process complete — PR-2026-00912 rejected, full audit trail archived",
             reasoning: [
-                "Duration: 2m 15s (excluding HITL wait times)",
-                "Validations run: 14 — 11 passed, 2 failed, 1 informational",
-                "HITL gates triggered: 2 (correction request sent + final rejection sent)",
-                "Vendor interaction: 1 round trip — partial fix (supplier name corrected, price unchanged)",
-                "Supplier Master lookup: completed — Bachem AG SUP-72103 confirmed",
+                "Processing duration: 2m 15s (excluding HITL wait times)",
+                "Validations run: 14 — 11 passed, 2 failed (V6 Supplier, V7 Pricing), 1 informational",
+                "HITL gates triggered: 2 (Gate 1: correction email to vendor; Gate 2: rejection email)",
+                "Vendor interaction: 1 round trip — supplier name corrected, pricing unresolved",
+                "Supplier Master lookup completed: Bachem AG SUP-72103 confirmed as registered entity",
                 "SAP Ariba final status: Rejected",
                 "All artifacts archived for compliance and audit"
             ],
@@ -526,58 +502,61 @@ const waitForHITL = async () => {
                     type: "json",
                     label: "Complete Audit Trail",
                     data: {
-                        process_id: "FPR-002",
+                        process_id: "FPR_002",
                         pr_id: "PR-2026-00912",
+                        supplier: "Bachem AG (SUP-72103)",
+                        amount: "USD 45,800.00",
                         started: "2026-03-26T09:18:00Z",
                         completed: "2026-03-26T14:46:00Z",
                         outcome: "REJECTED",
-                        validations: { run: 14, passed: 11, failed: 2 },
-                        hitl_gates: 2,
+                        validations: { run: 14, passed: 11, failed: 2, informational: 1 },
+                        hitl_gates_triggered: 2,
                         vendor_rounds: 1,
                         supplier_master_checked: true,
-                        sap_ariba_updated: true
+                        sap_ariba_updated: true,
+                        rejection_reason: "Pricing variance +5.24% (threshold ±3%) — unresolved after vendor correction attempt"
                     }
                 }
             ]
         }
     ];
 
-    const allSteps = [...steps, ...hitlSteps];
-
-    for (let i = 0; i < allSteps.length; i++) {
-        const step = allSteps[i];
-        const isFinal = i === allSteps.length - 1;
+    // ── Execution loop ────────────────────────────────────────────────────────
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const isFinal = i === steps.length - 1;
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         // Show processing state
         updateProcessLog(PROCESS_ID, {
             id: step.id,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: timeStr,
             title: step.title_p,
             status: 'processing'
         });
         await updateProcessListStatus(PROCESS_ID, 'In Progress', step.title_p);
         await delay(2000);
 
-        if (step.hitl === 'email') {
-            // Show warning + draft, then BLOCK on HITL
+        if (step.hitl) {
+            // HITL gate — set action-needed, block on poll
             updateProcessLog(PROCESS_ID, {
                 id: step.id,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 title: step.title_s,
-                status: 'warning',
+                status: 'action-needed',
                 reasoning: step.reasoning || [],
                 artifacts: step.artifacts || []
             });
-            const gateLabel = step.hitl_gate === 2 ? 'HITL Gate 2: Final Rejection Email Pending' : 'HITL Gate 1: Correction Email Pending';
+            const gateLabel = step.hitl_gate === 2
+                ? 'Needs Attention — HITL Gate 2: Rejection Email Pending Approval'
+                : 'Needs Attention — HITL Gate 1: Correction Email Pending Approval';
             await updateProcessListStatus(PROCESS_ID, 'Needs Attention', gateLabel);
+            await setHitlPending(PROCESS_ID);
+            const action = await pollHitl(PROCESS_ID);
 
-            // BLOCK until human approves
-            const hitlAction = await waitForHITL();
-
-            if (hitlAction === 'send') {
+            if (action === 'approve' || action === 'send') {
                 const sentTitle = step.hitl_gate === 2
-                    ? 'Final rejection email sent — proceeding to SAP Ariba rejection'
-                    : 'Vendor correction email sent — monitoring inbox for response';
+                    ? 'Rejection email approved and sent — proceeding to SAP Ariba rejection'
+                    : 'Correction email approved and sent — monitoring inbox for vendor response';
                 updateProcessLog(PROCESS_ID, {
                     id: step.id,
                     title: sentTitle,
@@ -586,35 +565,45 @@ const waitForHITL = async () => {
                     artifacts: step.artifacts || []
                 });
                 await updateProcessListStatus(PROCESS_ID, 'In Progress', sentTitle);
+                await delay(1500);
+
+                // After Gate 1: simulate vendor response delay
+                if (step.hitl_gate === 1) {
+                    console.log(`${PROCESS_ID}: Simulating vendor response delay (3s)...`);
+                    await delay(3000);
+                }
             } else {
                 updateProcessLog(PROCESS_ID, {
                     id: step.id,
-                    title: 'Process halted by reviewer',
+                    title: 'Process halted by reviewer at HITL gate',
                     status: 'warning',
                     reasoning: step.reasoning || [],
                     artifacts: step.artifacts || []
                 });
                 await updateProcessListStatus(PROCESS_ID, 'Done', 'Halted by reviewer at HITL gate');
+                console.log(`${PROCESS_ID}: Process halted by reviewer.`);
                 return;
             }
-            await delay(1500);
 
-            // After HITL gate 1: simulate vendor response delay before step 10
-            if (step.hitl_gate === 1) {
-                console.log("FPR_002: Simulating vendor response delay (3s)...");
-                await delay(3000);
-            }
-
-        } else {
-            // Normal step
+        } else if (isFinal) {
             updateProcessLog(PROCESS_ID, {
                 id: step.id,
                 title: step.title_s,
-                status: isFinal ? 'completed' : 'success',
+                status: 'completed',
                 reasoning: step.reasoning || [],
                 artifacts: step.artifacts || []
             });
-            await updateProcessListStatus(PROCESS_ID, isFinal ? 'Done' : 'In Progress', step.title_s);
+            await updateProcessListStatus(PROCESS_ID, 'Done', step.title_s);
+
+        } else {
+            updateProcessLog(PROCESS_ID, {
+                id: step.id,
+                title: step.title_s,
+                status: 'success',
+                reasoning: step.reasoning || [],
+                artifacts: step.artifacts || []
+            });
+            await updateProcessListStatus(PROCESS_ID, 'In Progress', step.title_s);
             await delay(1500);
         }
     }
