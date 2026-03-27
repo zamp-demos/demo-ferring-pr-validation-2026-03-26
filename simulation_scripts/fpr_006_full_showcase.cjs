@@ -43,356 +43,613 @@ const updateProcessListStatus = async (processId, status, currentStatus) => {
     }
 };
 
-// Per-process HITL: polls /hitl/FPR_006
+// Per-process HITL: polls /hitl/FPR_006 until action='send' or 'reject'
 const waitForHITL = async () => {
     console.log("FPR_006: Waiting for HITL action (send or reject)...");
     const API_URL = process.env.VITE_API_URL || 'http://localhost:3001';
-    // Set this process HITL state to pending
     try {
         await fetch(`${API_URL}/hitl/FPR_006`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pending: true, action: null })
         });
-    } catch (e) { console.error('FPR_006: Failed to set HITL pending:', e.message); }
-
-    // Legacy compat
-    try { await fetch(`${API_URL}/email-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sent: false }) }); } catch (e) {}
-
+    } catch (e) {}
+    try {
+        await fetch(`${API_URL}/email-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sent: false })
+        });
+    } catch (e) {}
     while (true) {
-        await delay(2000);
         try {
-            const response = await fetch(`${API_URL}/hitl/FPR_006`);
-            if (response.ok) {
-                const { action } = await response.json();
-                if (action === 'send') { console.log("FPR_006: Email approved - sending!"); return 'send'; }
-                if (action === 'reject') { console.log("FPR_006: Reviewer rejected process."); return 'reject'; }
-            }
-        } catch (e) { }
+            const r = await fetch(`${API_URL}/hitl/FPR_006`);
+            const d = await r.json();
+            if (d.action === 'send') { console.log("FPR_006: HITL resolved → send"); return 'send'; }
+            if (d.action === 'reject') { console.log("FPR_006: HITL resolved → reject"); return 'reject'; }
+        } catch (e) {}
+        await delay(2000);
     }
 };
 
 (async () => {
     console.log(`Starting ${PROCESS_ID}: ${CASE_NAME}...`);
-    const steps = [
-        // STEP 1: Desktop agent connects to SAP Ariba
+
+    const allSteps = [
+        // STEP 1: ServiceNow trigger
         {
-            id:"step-1",
-            title_p:"Desktop agent connecting to SAP Ariba...",
-            title_s:"SAP Ariba session established - navigating to PR-2026-01567",
-            reasoning:[
-                "Agent authenticated as pace.agent@ferring.com",
-                "Session ID: SESS-2026-03-26-0847",
-                "Navigated to Pending Approvals queue",
-                "Located PR-2026-01567 in queue (Position 3 of 12 pending items)",
-                "Desktop agent actions logged for full audit trail",
-                "All UI interactions recorded via screen capture"
+            id: "step-1",
+            title_p: "ServiceNow ticket INC-2026-05102 received — initiating PR validation workflow...",
+            title_s: "Trigger received — ServiceNow INC-2026-05102 mapped to PR-2026-01567",
+            reasoning: [
+                "ServiceNow ticket INC-2026-05102 received at 08:45 UTC",
+                "Category: Procurement / Purchase Requisition Approval",
+                "Description: 'PR-2026-01567 — Boehringer Ingelheim CRO services renewal, EUR 2,780,000. Requires validation before SAP Ariba approval.'",
+                "Requested by: Sophie Beaumont (Global Procurement Lead)",
+                "Priority: High (MSA contract renewal, deadline: 2026-03-31)",
+                "Pace workflow triggered: PR Validation → FPR-006",
+                "Ticket INC-2026-05102 status set to: In Progress"
             ],
-            artifacts:[
-                {id:"v-ariba-6",type:"video",label:"Desktop Agent: SAP Ariba Login & Queue",videoPath:"/data/sap_ariba_desktop_agent_fpr006.webm"},
-                {id:"sess-log-6",type:"json",label:"Desktop Agent Session Log",data:{session_id:"SESS-2026-03-26-0847",agent:"pace.agent@ferring.com",login_time:"10:14:18",system:"SAP Ariba Procurement",actions:[{ts:"10:14:18",action:"Launch SAP Ariba desktop client",status:"Success"},{ts:"10:14:21",action:"Authenticate as pace.agent@ferring.com",status:"Success"},{ts:"10:14:23",action:"Navigate to Pending Approvals queue",status:"Success"},{ts:"10:14:25",action:"Locate PR-2026-01567 (position 3 of 12)",status:"Found"}]}}
+            artifacts: [
+                {
+                    id: "v-servicenow-6",
+                    type: "video",
+                    label: "ServiceNow: Ticket INC-2026-05102",
+                    videoPath: "/data/servicenow_fpr006.webm"
+                },
+                {
+                    id: "snow-ticket-6",
+                    type: "json",
+                    label: "ServiceNow Ticket Data",
+                    data: {
+                        ticket_id: "INC-2026-05102",
+                        category: "Procurement / PR Approval",
+                        pr_reference: "PR-2026-01567",
+                        requester: "Sophie Beaumont",
+                        priority: "High",
+                        description: "PR-2026-01567 — Boehringer Ingelheim CRO services renewal, EUR 2,780,000. MSA cap validation required.",
+                        created: "2026-03-26T08:45:00Z",
+                        status: "In Progress"
+                    }
+                }
             ]
         },
-
-        // STEP 2: Agent opens PR-2026-01567, reads each field
+        // STEP 2: SAP Ariba login + navigate to PR
         {
-            id:"step-2",
-            title_p:"Opening PR-2026-01567 and reading all header fields...",
-            title_s:"PR header extracted - Boehringer Ingelheim, EUR 2,780,000 (US entity)",
-            reasoning:[
-                "Agent clicked on PR-2026-01567 in the queue list",
-                "Agent scrolled through the PR header section",
-                "Read Company Code = 4100 (Ferring Pharmaceuticals Inc., USA)",
-                "Read Requester: Dr. Robert Kingsley",
-                "Read Budget Owner: Sarah Whitfield, VP Manufacturing",
-                "Read PO Owner: Dr. Robert Kingsley",
-                "Read Cost Center: CC-MFG-US-007",
+            id: "step-2",
+            title_p: "Desktop agent connecting to SAP Ariba — navigating to PR-2026-01567...",
+            title_s: "Connected to SAP Ariba — PR-2026-01567 opened, Boehringer Ingelheim, EUR 2,780,000",
+            reasoning: [
+                "Authenticated to SAP Ariba as pace.agent@ferring.com",
+                "Session established (SESS-2026-03-26-0845)",
+                "Navigated to Manage → Purchase Requisitions",
+                "Searched PR-2026-01567 — status: Pending Approval",
+                "Opened PR detail view",
+                "Reading PR header fields..."
+            ],
+            artifacts: [
+                {
+                    id: "v-ariba-6",
+                    type: "video",
+                    label: "SAP Ariba: PR-2026-01567 Detail View",
+                    videoPath: "/data/sap_ariba_desktop_agent_fpr006.webm"
+                }
+            ]
+        },
+        // STEP 3: Read PR header fields
+        {
+            id: "step-3",
+            title_p: "Reading all PR-2026-01567 header fields...",
+            title_s: "PR header extracted — Boehringer Ingelheim GmbH, EUR 2,780,000, Germany region",
+            reasoning: [
+                "Read Requester: Sophie Beaumont",
+                "Read Budget Owner: Dr. Heinrich Müller (VP Clinical Operations)",
+                "Read Company Code: 1500 (Ferring GmbH, Germany)",
+                "Read Cost Center: CC-CLIN-DE-007",
                 "Read Currency: EUR",
                 "Read Total Amount: EUR 2,780,000.00",
-                "Read Preferred Ordering: PRINTING",
-                "Read Comments: 'project site address - new manufacturing facility'",
-                "Read Supplier: Boehringer Ingelheim (ID: SUP-BI-4477)"
+                "Read Supplier: Boehringer Ingelheim GmbH (Supplier ID: SUP-44219)",
+                "Read Contract Reference: MSA-BI-2021-0044",
+                "Read Region: Germany (EMEA)",
+                "Read PR date: 2026-03-20"
             ],
-            artifacts:[
-                {id:"pr-header-6",type:"json",label:"PR Header - Extracted Fields",data:{pr_id:"PR-2026-01567",company_code:"4100",entity:"Ferring Pharmaceuticals Inc.",requester:"Dr. Robert Kingsley",budget_owner:"Sarah Whitfield, VP Manufacturing",po_owner:"Dr. Robert Kingsley",cost_center:"CC-MFG-US-007",currency:"EUR",total_amount:"2,780,000.00",preferred_ordering:"PRINTING",comments:"project site address - new manufacturing facility",supplier:"Boehringer Ingelheim",supplier_id:"SUP-BI-4477",region:"US/Canada",document_type:"MSA + SOW",attachments_count:2}}
+            artifacts: [
+                {
+                    id: "pr-header-6",
+                    type: "json",
+                    label: "PR-2026-01567 Header Data",
+                    data: {
+                        pr_id: "PR-2026-01567",
+                        company_code: "1500",
+                        entity: "Ferring GmbH",
+                        requester: "Sophie Beaumont",
+                        budget_owner: "Dr. Heinrich Müller",
+                        cost_center: "CC-CLIN-DE-007",
+                        currency: "EUR",
+                        total_amount: "2,780,000.00",
+                        supplier: "Boehringer Ingelheim GmbH",
+                        supplier_id: "SUP-44219",
+                        contract_ref: "MSA-BI-2021-0044",
+                        region: "Germany (EMEA)",
+                        pr_date: "2026-03-20"
+                    }
+                }
             ]
         },
-
-        // STEP 3: Agent opens each line item (3 line items)
+        // STEP 4: Extract line items
         {
-            id:"step-3",
-            title_p:"Opening and extracting all line items...",
-            title_s:"3 line items extracted - Bioprocess, Technology Transfer, Regulatory Support",
-            reasoning:[
-                "Agent opened Line Item 1: Bioprocess Development Services",
-                "Read Item 1: Material Code MG-MFG-001, Qty 1, Unit Price EUR 1,500,000.00",
-                "Agent opened Line Item 2: Technology Transfer Services",
-                "Read Item 2: Material Code MG-TT-003, Qty 1, Unit Price EUR 800,000.00",
-                "Agent opened Line Item 3: Regulatory Affairs Support",
-                "Read Item 3: Material Code MG-REG-007, Qty 1, Unit Price EUR 480,000.00",
-                "Line item total: EUR 2,780,000.00 - matches PR header total",
-                "All 3 line items use EUR currency - consistent"
+            id: "step-4",
+            title_p: "Opening line items tab and reading all 3 items...",
+            title_s: "3 line items extracted — CRO services covering Phase II/III clinical support",
+            reasoning: [
+                "Clicked 'Line Items' tab in PR detail view",
+                "Line 1: Phase II Clinical Trial Management — 12 months × EUR 150,000 = EUR 1,800,000.00",
+                "Line 2: Regulatory Affairs Support — 12 months × EUR 50,000 = EUR 600,000.00",
+                "Line 3: Data Management & Biostatistics — 1 LOT × EUR 380,000.00 = EUR 380,000.00",
+                "Sum: EUR 1,800,000 + EUR 600,000 + EUR 380,000 = EUR 2,780,000.00 — matches PR total",
+                "All line items reference contract MSA-BI-2021-0044"
             ],
-            artifacts:[
-                {id:"line-items-6",type:"json",label:"Line Items - All 3 Extracted",data:{pr_id:"PR-2026-01567",total_line_items:3,currency:"EUR",grand_total:"2,780,000.00",items:[{item_no:"1",description:"Bioprocess Development Services",material_code:"MG-MFG-001",quantity:1,unit_price:"1,500,000.00",total:"1,500,000.00"},{item_no:"2",description:"Technology Transfer Services",material_code:"MG-TT-003",quantity:1,unit_price:"800,000.00",total:"800,000.00"},{item_no:"3",description:"Regulatory Affairs Support",material_code:"MG-REG-007",quantity:1,unit_price:"480,000.00",total:"480,000.00"}]}}
+            artifacts: [
+                {
+                    id: "line-items-6",
+                    type: "json",
+                    label: "PR-2026-01567 Line Items",
+                    data: {
+                        line_items: [
+                            { line: "1", description: "Phase II Clinical Trial Management", qty: "12 months", unit_price: "EUR 150,000.00", total: "EUR 1,800,000.00" },
+                            { line: "2", description: "Regulatory Affairs Support", qty: "12 months", unit_price: "EUR 50,000.00", total: "EUR 600,000.00" },
+                            { line: "3", description: "Data Management & Biostatistics", qty: "1 LOT", unit_price: "EUR 380,000.00", total: "EUR 380,000.00" }
+                        ],
+                        sum_check: "EUR 2,780,000.00 = PR total ✓"
+                    }
+                }
             ]
         },
-
-        // STEP 4: Agent downloads attachments
+        // STEP 5: Download + classify 2 attachments
         {
-            id:"step-4",
-            title_p:"Downloading 2 attachments from SAP Ariba PR-2026-01567...",
-            title_s:"Validation 1/14: MSA (0.93) + SOW (0.90) identified - both downloaded",
-            reasoning:[
-                "Found 2 attachments on PR-2026-01567",
-                "Downloading BI_MSA_Ferring_2026.pdf (12 pages, 1.8MB)",
-                "Download complete: BI_MSA_Ferring_2026.pdf saved to processing folder",
-                "Downloading BI_SOW_Manufacturing_2026.pdf (6 pages, 892KB)",
-                "Download complete: BI_SOW_Manufacturing_2026.pdf saved to processing folder",
-                "Document classification: MSA (confidence 0.93), SOW (confidence 0.90)",
-                "Priority selection: MSA takes precedence per document priority ruleset (MSA > SOW > Quotation > Invoice > PO)"
+            id: "step-5",
+            title_p: "Opening attachments tab — downloading MSA and SOW documents...",
+            title_s: "Validation 1/14: 2 attachments found — MSA contract + Statement of Work identified",
+            reasoning: [
+                "Clicked 'Attachments' tab in PR detail view",
+                "Found 2 attachments:",
+                "  Attachment 1: MSA_Boehringer_Ingelheim_2021_0044.pdf (47 pages, 1.2MB) — classified: Master Service Agreement (confidence: 0.97)",
+                "  Attachment 2: SOW_BI_CRO_Services_2026.pdf (18 pages, 890KB) — classified: Statement of Work (confidence: 0.94)",
+                "Both documents downloaded to processing queue",
+                "Extracting structured data from both documents..."
             ],
-            artifacts:[
-                {id:"pdf-msa-6",type:"file",label:"MSA - Boehringer Ingelheim",pdfPath:"/data/boehringer_msa_2026.pdf"},
-                {id:"pdf-sow-6",type:"file",label:"SOW - Boehringer Ingelheim",pdfPath:"/data/boehringer_sow_2026.pdf"},
-                {id:"doc-class-6",type:"json",label:"Document Classification Results",data:{documents:[{filename:"BI_MSA_Ferring_2026.pdf",type:"Master Service Agreement",confidence:0.93,pages:12,size_kb:1843,selected_for_primary_validation:true},{filename:"BI_SOW_Manufacturing_2026.pdf",type:"Statement of Work",confidence:0.90,pages:6,size_kb:892,selected_for_primary_validation:false}]}}
+            artifacts: [
+                {
+                    id: "pdf-msa-6",
+                    type: "file",
+                    label: "MSA — Boehringer Ingelheim (2021-0044)",
+                    pdfPath: "/data/bachem_invoice_2026.pdf"
+                }
             ]
         },
-
-        // STEP 5: Extract structured data from MSA
+        // STEP 6: Extract data from both documents
         {
-            id:"step-5",
-            title_p:"Extracting structured data from MSA (12 pages)...",
-            title_s:"MSA fully parsed - max contract value EUR 2,500,000 identified",
-            reasoning:[
-                "Read MSA page 1: Parties identified",
-                "Extracted: Supplier = 'Boehringer Ingelheim Pharma GmbH & Co. KG'",
-                "Extracted: Customer = 'Ferring Pharmaceuticals Inc.'",
-                "Read MSA page 2-3: Contract terms",
-                "Extracted: Contract Number = MSA-BI-2024-0047",
-                "Extracted: Maximum Contract Value = EUR 2,500,000.00",
-                "Extracted: Effective Date = 2024-01-01",
-                "Extracted: Expiry Date = 2027-12-31",
-                "Read MSA page 4-6: Service scope",
-                "Extracted: Service Type = Contract Pharmaceutical Manufacturing",
-                "Extracted: Payment Terms = NET 60",
-                "Extracted: Governing Law = State of New Jersey, USA",
-                "Read MSA pages 7-12: Schedules, signatures confirmed"
+            id: "step-6",
+            title_p: "Extracting structured data from MSA and SOW...",
+            title_s: "ALERT: MSA annual cap EUR 2,500,000 — invoice total EUR 2,780,000 exceeds cap by EUR 280,000",
+            reasoning: [
+                "MSA-BI-2021-0044 extracted: Annual service cap = EUR 2,500,000 per contract year",
+                "MSA cap applies to: all CRO services under Sections 4, 6, and 9 of MSA-BI-2021-0044",
+                "SOW-2026 extracted: Scope confirmation matches PR line items — scope is accurate",
+                "Invoice total: EUR 2,780,000.00 (from PR)",
+                "MSA annual cap: EUR 2,500,000.00",
+                "Cap exceedance: EUR 280,000.00 (+11.2%) — requires MSA amendment or executive approval"
             ],
-            artifacts:[
-                {id:"msa-data-6",type:"json",label:"MSA Extracted Data",data:{contract_number:"MSA-BI-2024-0047",supplier_name:"Boehringer Ingelheim Pharma GmbH & Co. KG",customer_name:"Ferring Pharmaceuticals Inc.",max_contract_value:"EUR 2,500,000.00",effective_date:"2024-01-01",expiry_date:"2027-12-31",service_type:"Contract Pharmaceutical Manufacturing",payment_terms:"NET 60",governing_law:"State of New Jersey, USA",signed:true,pages_processed:12}}
+            artifacts: [
+                {
+                    id: "msa-extracted-6",
+                    type: "json",
+                    label: "MSA & SOW Extracted Data",
+                    data: {
+                        msa_id: "MSA-BI-2021-0044",
+                        msa_annual_cap: "EUR 2,500,000.00",
+                        msa_cap_sections: "Sections 4, 6, 9 — all CRO services",
+                        msa_effective: "2021-07-01",
+                        msa_renewal_date: "2026-07-01",
+                        sow_scope: "Phase II Trial Mgmt + Regulatory + Data Management — confirmed",
+                        pr_total: "EUR 2,780,000.00",
+                        cap_exceedance: "EUR 280,000.00",
+                        cap_exceedance_pct: "11.2%",
+                        issue: "MSA annual cap exceeded — amendment or executive approval required"
+                    }
+                }
             ]
         },
-
-        // STEP 6: Extract from SOW
+        // STEP 7: Supplier Master check
         {
-            id:"step-6",
-            title_p:"Extracting structured data from SOW (6 pages)...",
-            title_s:"SOW parsed - 3 work packages mapped to line items",
-            reasoning:[
-                "Read SOW page 1: Project scope overview",
-                "Extracted: Project = 'Desmopressin API Manufacturing Scale-Up'",
-                "Extracted: SOW reference = SOW-BI-2026-MFG-001",
-                "Read SOW page 2-3: Work packages",
-                "Extracted: Work Package 1 = Bioprocess Development (EUR 1,500,000)",
-                "Extracted: Work Package 2 = Technology Transfer (EUR 800,000)",
-                "Extracted: Work Package 3 = Regulatory Affairs Support (EUR 480,000)",
-                "SOW Total: EUR 2,780,000.00",
-                "Read SOW page 4-5: Deliverables and timelines",
-                "Extracted: Delivery timeline = 18 months from SOW execution",
-                "Extracted: Milestone payments = Yes (4 milestones)"
+            id: "step-7",
+            title_p: "Checking Ferring Supplier Master for Boehringer Ingelheim GmbH...",
+            title_s: "Supplier Master: Boehringer Ingelheim GmbH (SUP-44219) — Active, PASS",
+            reasoning: [
+                "Opened Ferring Supplier Master portal",
+                "Searched for 'Boehringer Ingelheim' — found 1 active record",
+                "SUP-44219: Boehringer Ingelheim GmbH — Active, EMEA, registration date 2018-04-12",
+                "Supplier name on PR matches Supplier Master exactly: 'Boehringer Ingelheim GmbH' ✓",
+                "No purchasing blocks or compliance flags",
+                "V6 Supplier Validation: PASS"
             ],
-            artifacts:[
-                {id:"sow-data-6",type:"json",label:"SOW Extracted Data",data:{sow_ref:"SOW-BI-2026-MFG-001",project:"Desmopressin API Manufacturing Scale-Up",work_packages:[{id:"WP-1",name:"Bioprocess Development Services",value:"EUR 1,500,000.00"},{id:"WP-2",name:"Technology Transfer Services",value:"EUR 800,000.00"},{id:"WP-3",name:"Regulatory Affairs Support",value:"EUR 480,000.00"}],sow_total:"EUR 2,780,000.00",delivery_timeline:"18 months",milestone_payments:4}}
+            artifacts: [
+                {
+                    id: "supplier-master-6",
+                    type: "json",
+                    label: "Supplier Master Result",
+                    data: {
+                        search_term: "Boehringer Ingelheim",
+                        result: { supplier_id: "SUP-44219", name: "Boehringer Ingelheim GmbH", status: "Active", region: "EMEA", registration_date: "2018-04-12" },
+                        pr_supplier_name: "Boehringer Ingelheim GmbH",
+                        match: "EXACT MATCH ✓",
+                        v6_result: "PASS"
+                    }
+                }
             ]
         },
-
-        // STEP 7: Categorise and V1-V9 validations
+        // STEP 8: Full validation suite
         {
-            id:"step-7",
-            title_p:"Running comprehensive validation suite (14 domains)...",
-            title_s:"Validations V1-V9: 6 PASS, Pricing FAIL (MSA cap exceeded by EUR 280,000), 2 with flags",
-            reasoning:[
-                "V1 Attachment: MSA + SOW both valid - PASS",
-                "V2 Accounting: Cost Center CC-MFG-US-007, GL assignment consistent with manufacturing - PASS",
-                "V3 Budget Owner: Sarah Whitfield != Dr. Robert Kingsley (requester) - independent approval confirmed - PASS",
-                "V4 Currency: EUR consistent across PR header, all 3 line items, and MSA - PASS",
-                "V5 Material Group: MG-MFG-001, MG-TT-003, MG-REG-007 all found in approved master list - PASS",
-                "V6 Supplier: 'Boehringer Ingelheim Pharma GmbH & Co. KG' vs 'Boehringer Ingelheim' - 95% match - PASS",
-                "V7 Pricing: FAIL - PR total EUR 2,780,000 exceeds MSA maximum EUR 2,500,000 by EUR 280,000 (11.2%)",
-                "V8 Service Type: Contract Manufacturing - 0.89 match confidence - PASS",
-                "V9 Ordering: PRINTING method detected - PASS but flag: Ferring PO Distribution Group should be added as approver"
+            id: "step-8",
+            title_p: "Running comprehensive validation suite (14 domains)...",
+            title_s: "Validations complete — 12 PASS, 1 FAIL (MSA cap), 1 informational (contract renewal)",
+            reasoning: [
+                "V1 Attachment: 2 docs classified — MSA (0.97) + SOW (0.94) — PASS",
+                "V2 Accounting: CC-CLIN-DE-007, GL 67100200 — PASS",
+                "V3 Budget Owner: Dr. Müller ≠ Sophie Beaumont — PASS",
+                "V4 Currency: EUR matches throughout — PASS",
+                "V5 Material Group: MG-CRO-001 approved for clinical services — PASS",
+                "V6 Supplier: Boehringer Ingelheim GmbH — exact match SUP-44219 — PASS",
+                "V7 Pricing: FAIL — EUR 2,780,000 exceeds MSA annual cap EUR 2,500,000 by EUR 280,000 (+11.2%)",
+                "V8 Service Type: SAC 998112 (clinical research) — PASS",
+                "V9 Ordering: PORTAL method, bi-procurement@boehringer-ingelheim.com — PASS",
+                "V10 Ship-To: SHIP-DE-007 linked to entity 1500 — PASS",
+                "V11 Sold-To: 1500 = 1500 — PASS",
+                "V12 Company Code: Ferring GmbH, confidence 0.99 — PASS",
+                "V13 Quantity: All 3 lines match SOW scope — PASS",
+                "V14 Deliver-To: Ferring GmbH, Wittmund, Germany — PASS"
             ],
-            artifacts:[
-                {id:"price-6",type:"json",label:"Pricing Validation - MSA Cap Exceeded",data:{pr_total:"EUR 2,780,000.00",msa_max_value:"EUR 2,500,000.00",exceeded_by:"EUR 280,000.00",exceeded_pct:"11.2%",status:"FAIL",note:"PR amount exceeds maximum contract value defined in MSA. MSA amendment or reduced PR required."}}
+            artifacts: [
+                {
+                    id: "validation-scorecard-6",
+                    type: "json",
+                    label: "Validation Scorecard",
+                    data: {
+                        overall_status: "FAIL",
+                        total: 14, passed: 12, failed: 1, informational: 1,
+                        failures: [
+                            { check: "V7 Pricing / MSA Cap", result: "FAIL", detail: "PR EUR 2,780,000 exceeds MSA-BI-2021-0044 annual cap EUR 2,500,000 by EUR 280,000 (+11.2%)" }
+                        ],
+                        informational: [{ check: "MSA Renewal", note: "MSA-BI-2021-0044 renews 2026-07-01 — within 100 days; confirm renewal terms before next cycle" }]
+                    }
+                }
             ]
         },
-
-        // STEP 8: V10-V14 and validation summary
+        // STEP 9: Gap analysis
         {
-            id:"step-8",
-            title_p:"Completing validations V10-V14 and generating summary...",
-            title_s:"Overall: FAIL - 11 PASS, 1 FAIL (MSA cap), 2 informational flags",
-            reasoning:[
-                "V10 Ship-To: SHIP-US-001 valid; flag: comment mentions 'new manufacturing facility' - may need new Ship-To record",
-                "V11 Sold-To: Company code 4100 = 4100 - PASS",
-                "V12 Company Code: Ferring Pharmaceuticals Inc. - confidence 0.99 - PASS",
-                "V13 Quantity: Match at Level 2 - PASS",
-                "V14 Deliver-To: Valid content - PASS",
-                "SUMMARY: 11 PASS | 1 FAIL | 2 informational notes",
-                "Critical failure: PR EUR 2,780,000 exceeds MSA cap EUR 2,500,000 by EUR 280,000 (11.2%)",
-                "Action required: MSA amendment OR PR reduction below EUR 2,500,000"
+            id: "step-9",
+            title_p: "Generating gap analysis — MSA cap exceedance documentation...",
+            title_s: "Gap analysis complete — EUR 280,000 MSA cap exceedance requires vendor discussion or contract amendment",
+            reasoning: [
+                "Root cause: Service scope expanded for Data Management & Biostatistics LOT (EUR 380,000) not included in original MSA budget model",
+                "Options: (a) Reduce scope to fit within EUR 2,500,000 cap, (b) Execute MSA amendment raising annual cap, (c) Obtain CFO-level exception approval",
+                "MSA amendment timeline: typically 3-4 weeks — would delay trial by one month",
+                "Recommendation: Draft email to Boehringer Ingelheim requesting scope reduction or formal MSA cap amendment proposal",
+                "All other validations pass — issue is isolated to MSA cap exceedance"
             ],
-            artifacts:[
-                {id:"val-6",type:"json",label:"Complete Validation Scorecard",data:{overall_status:"FAIL",passed:11,failed:1,manual_review:0,notes:2,key_issues:["V7 Pricing: PR EUR 2,780,000 exceeds MSA cap EUR 2,500,000 by EUR 280,000 (11.2%) - FAIL","V9 Ordering: PRINTING method - Ferring PO Distribution Group approver needed","V10 Ship-To: New manufacturing facility address may require new Ship-To record"],complete_audit:{v1_attachment:"PASS",v2_accounting:"PASS",v3_budget_owner:"PASS",v4_currency:"PASS",v5_material_group:"PASS",v6_supplier_id:"PASS (95%)",v7_pricing:"FAIL",v8_service_type:"PASS (0.89)",v9_ordering_method:"PASS (with note)",v10_ship_to:"PASS (with note)",v11_sold_to:"PASS",v12_company_code:"PASS (0.99)",v13_quantity:"PASS",v14_deliver_to:"PASS"}}}
+            artifacts: [
+                {
+                    id: "gap-analysis-6",
+                    type: "json",
+                    label: "Gap Analysis",
+                    data: {
+                        pr_id: "PR-2026-01567",
+                        issue: "MSA Annual Cap Exceedance",
+                        msa_cap: "EUR 2,500,000",
+                        pr_total: "EUR 2,780,000",
+                        excess: "EUR 280,000 (+11.2%)",
+                        resolution_options: [
+                            "Reduce scope to fit cap (requires new SOW)",
+                            "Execute MSA cap amendment (3-4 week timeline)",
+                            "CFO exception approval (expedited 5 business days)"
+                        ]
+                    }
+                }
             ]
         },
-
-        // STEP 9: HITL - draft email, wait for approval
+        // STEP 10: HITL GATE 1 — Email to Boehringer requesting resolution
         {
-            id:"step-9",
-            hitl:"email",
-            title_p:"Drafting rejection email to supplier and requester...",
-            title_s:"Email draft ready - awaiting procurement team approval to send",
-            reasoning:[
-                "Comprehensive rejection email prepared",
-                "To: contracts@boehringer-ingelheim.com, robert.kingsley@ferring.com",
-                "CC: procurement-us@ferring.com, sarah.whitfield@ferring.com",
-                "Email covers: MSA cap exceedance (primary), ordering method flag, special delivery note",
-                "Requested actions: MSA amendment OR reduced PR + Ship-To confirmation",
-                "Draft reviewed by Pace - awaiting human procurement team approval"
+            id: "step-10",
+            hitl: "email",
+            hitl_gate: 1,
+            title_p: "Drafting email to Boehringer Ingelheim requesting MSA cap resolution...",
+            title_s: "Email draft ready — awaiting approval to send",
+            reasoning: [
+                "Email to: bi-procurement@boehringer-ingelheim.com",
+                "CC: sophie.beaumont@ferring.com, legal-contracts@ferring.com, cfo-office@ferring.com",
+                "Subject: MSA Cap Issue — PR-2026-01567 — EUR 280,000 Exceedance — MSA-BI-2021-0044",
+                "Body explains cap calculation, scope details, and requests formal proposal by 2026-03-28",
+                "Offers two resolution paths: scope reduction or MSA amendment",
+                "Awaiting approval to send"
             ],
-            artifacts:[
-                {id:"email-6",type:"email_draft",label:"Email: PR Rejection - MSA Cap Exceeded",data:{isIncoming:false,to:"contracts@boehringer-ingelheim.com, robert.kingsley@ferring.com",cc:"procurement-us@ferring.com, sarah.whitfield@ferring.com, validation-team@ferring.com",subject:"Action Required: Purchase Requisition PR-2026-01567 - MSA Maximum Value Exceeded",body:"Dear Dr. Kingsley and Boehringer Ingelheim Contracts Team,\n\nRegarding Purchase Requisition: PR-2026-01567\n\nDuring automated validation of your PR (Boehringer Ingelheim, EUR 2,780,000.00), the following critical issue was identified:\n\n1. MSA MAXIMUM CONTRACT VALUE EXCEEDED (Critical):\n   - PR Amount: EUR 2,780,000.00\n   - MSA Maximum Contract Value: EUR 2,500,000.00 (MSA-BI-2024-0047)\n   - Excess Amount: EUR 280,000.00 (11.2% over cap)\n   The PR amount exceeds the maximum contract value defined in the Master Service Agreement. An MSA amendment or reduction in PR scope is required before this PR can be approved.\n\n2. ORDERING METHOD NOTE (Informational):\n   - Preferred ordering method is PRINTING\n   - Ferring PO Distribution Group should be added as approver for manual PO distribution\n\n3. SPECIAL DELIVERY REQUEST (Informational):\n   - Comment detected: 'project site address - new manufacturing facility'\n   - A new Ship-To address record may need to be created for the manufacturing facility\n\nRequired Actions:\n- Option A: Initiate MSA amendment to increase maximum contract value above EUR 2,780,000, OR\n- Option B: Reduce PR total to within MSA cap (EUR 2,500,000.00)\n- Confirm new manufacturing facility Ship-To address details\n\nPlease respond within 5 business days.\n\nBest regards,\nFerring Procurement Validation Team\nvalidation-team@ferring.com"}}
+            artifacts: [
+                {
+                    id: "email-draft-6-gate1",
+                    type: "email_draft",
+                    label: "Email Draft: MSA Cap Resolution Request",
+                    data: {
+                        isIncoming: false,
+                        to: "bi-procurement@boehringer-ingelheim.com",
+                        cc: "sophie.beaumont@ferring.com, legal-contracts@ferring.com, cfo-office@ferring.com",
+                        subject: "MSA Cap Issue — PR-2026-01567 — EUR 280,000 Exceedance — MSA-BI-2021-0044",
+                        body: "Dear Boehringer Ingelheim Procurement Team,\n\nWe are processing Purchase Requisition PR-2026-01567 (EUR 2,780,000.00) for CRO services under Master Service Agreement MSA-BI-2021-0044.\n\nOur automated validation has identified an MSA annual cap exceedance:\n\n   PR-2026-01567 Total: EUR 2,780,000.00\n   MSA-BI-2021-0044 Annual Cap (Sections 4, 6, 9): EUR 2,500,000.00\n   Exceedance: EUR 280,000.00 (+11.2%)\n\nThe exceedance relates primarily to the Data Management & Biostatistics scope (EUR 380,000 LOT) added in the 2026 SOW.\n\nTo proceed, we require one of the following by 28 March 2026:\n   a) A revised SOW reducing scope to EUR 2,500,000 or below, or\n   b) A formal MSA amendment proposal to raise the annual cap to EUR 2,800,000 (or higher as appropriate).\n\nPlease note: PR-2026-01567 cannot be approved in SAP Ariba until this is resolved.\n\nBest regards,\nFerring GmbH — Global Procurement\nsophie.beaumont@ferring.com"
+                    }
+                }
             ]
         },
-
-        // STEP 10: After HITL send - Agent goes BACK to SAP Ariba, rejects PR
+        // STEP 11: Vendor response
         {
-            id:"step-10",
-            title_p:"Desktop agent returning to SAP Ariba to reject PR-2026-01567...",
-            title_s:"PR-2026-01567 status changed to REJECTED in SAP Ariba",
-            reasoning:[
-                "Desktop agent re-authenticated to SAP Ariba (session refresh)",
+            id: "step-11",
+            title_p: "Monitoring inbox for Boehringer Ingelheim response...",
+            title_s: "Vendor response received — Boehringer acknowledges cap issue, proposes MSA amendment",
+            reasoning: [
+                "Email received from bi-procurement@boehringer-ingelheim.com at 11:17 UTC",
+                "Subject: RE: MSA Cap Issue — PR-2026-01567",
+                "Boehringer confirms: 'We acknowledge the EUR 280,000 cap exceedance.'",
+                "Boehringer position: 'The Data Management & Biostatistics scope cannot be reduced — Phase II trial requirements mandate the full LOT.'",
+                "Proposed resolution: 'We propose executing MSA Amendment No. 3 to raise the annual cap from EUR 2,500,000 to EUR 2,900,000. Draft amendment attached for Ferring legal review.'",
+                "Attachment: MSA_BI_2021_0044_Amendment3_Draft.pdf (8 pages)",
+                "Analysis: Amendment path requires Ferring Legal + CFO signature — minimum 10 business days"
+            ],
+            artifacts: [
+                {
+                    id: "vendor-reply-6",
+                    type: "email_draft",
+                    label: "Incoming: Boehringer Response — MSA Amendment Proposed",
+                    data: {
+                        isIncoming: true,
+                        from: "bi-procurement@boehringer-ingelheim.com",
+                        to: "sophie.beaumont@ferring.com",
+                        subject: "RE: MSA Cap Issue — PR-2026-01567 — EUR 280,000 Exceedance",
+                        body: "Dear Sophie,\n\nThank you for your message regarding PR-2026-01567 and the MSA-BI-2021-0044 annual cap.\n\nWe confirm the EUR 280,000 exceedance. However, we are unable to reduce the Data Management & Biostatistics scope below the stated EUR 380,000 LOT. The Phase II trial protocol requires the full statistical analysis package as specified in the 2026 SOW.\n\nTo resolve this matter, we propose executing MSA Amendment No. 3, which would raise the annual service cap from EUR 2,500,000 to EUR 2,900,000, providing adequate headroom for this and future cycle requirements.\n\nWe have attached a draft amendment for Ferring Legal review. Subject to your team's availability, we estimate signature within 10-15 business days.\n\nPlease advise how to proceed.\n\nBest regards,\nBoehringer Ingelheim GmbH — Strategic Procurement\nbi-procurement@boehringer-ingelheim.com"
+                    }
+                }
+            ]
+        },
+        // STEP 12: Assess vendor response
+        {
+            id: "step-12",
+            title_p: "Assessing vendor response and MSA amendment proposal...",
+            title_s: "Assessment complete — MSA amendment required before PR can be approved; PR must be rejected pending amendment",
+            reasoning: [
+                "Boehringer confirms scope cannot be reduced — full Data Management LOT required by trial protocol",
+                "Proposed resolution: MSA Amendment No. 3 (EUR 2,500,000 → EUR 2,900,000)",
+                "Amendment timeline: 10-15 business days (Legal + CFO signatures required)",
+                "Current PR-2026-01567 cannot be approved without executed amendment",
+                "Recommendation: Reject PR-2026-01567 with clear reason; requester to resubmit after amendment execution",
+                "MSA amendment draft to be routed to legal-contracts@ferring.com and cfo-office@ferring.com"
+            ],
+            artifacts: [
+                {
+                    id: "assessment-6",
+                    type: "json",
+                    label: "Resolution Assessment",
+                    data: {
+                        vendor_response: "Cannot reduce scope — Data Management LOT mandatory for Phase II protocol",
+                        proposed_path: "MSA Amendment No. 3: cap EUR 2,500,000 → EUR 2,900,000",
+                        amendment_timeline: "10-15 business days",
+                        pr_outcome: "REJECT — resubmit after MSA amendment executed",
+                        next_steps: ["Route MSA Amendment draft to Ferring Legal", "CFO approval required", "Resubmit PR after amendment signature"]
+                    }
+                }
+            ]
+        },
+        // STEP 13: HITL GATE 2 — Final rejection email
+        {
+            id: "step-13",
+            hitl: "email",
+            hitl_gate: 2,
+            title_p: "Drafting final PR rejection email — MSA amendment must be executed first...",
+            title_s: "Final rejection email drafted — awaiting approval to send",
+            reasoning: [
+                "Email to: bi-procurement@boehringer-ingelheim.com, sophie.beaumont@ferring.com",
+                "CC: legal-contracts@ferring.com, cfo-office@ferring.com",
+                "Subject: PR-2026-01567 REJECTED — MSA Amendment Required Before Resubmission",
+                "Acknowledges Boehringer's amendment proposal, routes draft to Ferring Legal and CFO",
+                "Clear instruction: PR-2026-01567 rejected; resubmit after Amendment No. 3 is executed",
+                "Awaiting approval to send"
+            ],
+            artifacts: [
+                {
+                    id: "email-draft-6-gate2",
+                    type: "email_draft",
+                    label: "Email Draft: Final Rejection + MSA Amendment Routing",
+                    data: {
+                        isIncoming: false,
+                        to: "bi-procurement@boehringer-ingelheim.com",
+                        cc: "sophie.beaumont@ferring.com, legal-contracts@ferring.com, cfo-office@ferring.com",
+                        subject: "PR-2026-01567 REJECTED — MSA Amendment Required Before Resubmission",
+                        body: "Dear Boehringer Ingelheim Team,\n\nThank you for your response and for attaching the draft MSA Amendment No. 3.\n\nWe have reviewed the situation and confirm:\n   - The scope reduction path is not viable given Phase II protocol requirements\n   - MSA Amendment No. 3 (cap EUR 2,500,000 → EUR 2,900,000) is the correct resolution path\n\nPR-2026-01567 has been formally REJECTED in SAP Ariba pending execution of the MSA amendment.\n\nNext steps:\n   1. Draft MSA Amendment No. 3 has been routed to Ferring Legal (legal-contracts@ferring.com) and CFO Office (cfo-office@ferring.com) for review and signature\n   2. Estimated timeline: 10-15 business days\n   3. Once Amendment No. 3 is fully executed, Sophie Beaumont will resubmit PR-2026-01567\n\nReference: Validation run FPR-006 | ServiceNow: INC-2026-05102 | Rejection timestamp: 2026-03-26T14:22:00Z\n\nBest regards,\nFerring GmbH — Global Procurement\nsophie.beaumont@ferring.com"
+                    }
+                }
+            ]
+        },
+        // STEP 14: SAP Ariba rejection
+        {
+            id: "step-14",
+            title_p: "Desktop agent returning to SAP Ariba to reject PR-2026-01567...",
+            title_s: "PR-2026-01567 status changed: Pending → Rejected in SAP Ariba",
+            reasoning: [
+                "Desktop agent re-authenticated to SAP Ariba",
                 "Navigated to PR-2026-01567",
-                "Selected 'Reject' action from approver dropdown menu",
-                "Added rejection comment: 'PR exceeds MSA maximum contract value (MSA-BI-2024-0047) by EUR 280,000 (11.2%). MSA amendment or PR reduction required. See email sent to requestor and supplier.'",
-                "Submitted rejection - confirmation received",
-                "Status before: Pending Approval",
-                "Status after: Rejected",
-                "Rejection timestamp: confirmed by system (200 OK response)"
+                "Clicked 'Reject' from approver actions menu",
+                "Typed rejection comment: 'MSA-BI-2021-0044 annual cap EUR 2,500,000 exceeded by EUR 280,000 (+11.2%). MSA Amendment No. 3 required before approval. ServiceNow ref: INC-2026-05102. Resubmit after amendment execution. Ref: FPR-006.'",
+                "Confirmed rejection — status: Pending Approval → Rejected",
+                "Confirmation received (200 OK)"
             ],
-            artifacts:[
-                {id:"v-reject-6",type:"video",label:"Desktop Agent: SAP Ariba Rejection",videoPath:"/data/sap_ariba_rejection_fpr006.webm"},
-                {id:"ariba-reject-6",type:"json",label:"SAP Ariba Rejection Confirmation",data:{pr_id:"PR-2026-01567",action:"REJECT",status_before:"Pending Approval",status_after:"Rejected",rejection_comment:"PR exceeds MSA maximum contract value (MSA-BI-2024-0047) by EUR 280,000 (11.2%). MSA amendment or PR reduction required. Rejection email sent to contracts@boehringer-ingelheim.com and robert.kingsley@ferring.com.",timestamp:"2026-03-26T10:22:31Z",confirmed_by:"Pace Automation Agent",system_response:"200 OK"}}
+            artifacts: [
+                {
+                    id: "v-ariba-reject-6",
+                    type: "video",
+                    label: "SAP Ariba: PR-2026-01567 Rejection",
+                    videoPath: "/data/sap_ariba_rejection_fpr006.webm"
+                },
+                {
+                    id: "ariba-reject-confirm-6",
+                    type: "json",
+                    label: "SAP Ariba Rejection Confirmation",
+                    data: {
+                        pr_id: "PR-2026-01567",
+                        action: "REJECT",
+                        status_before: "Pending Approval",
+                        status_after: "Rejected",
+                        rejection_comment: "MSA-BI-2021-0044 annual cap EUR 2,500,000 exceeded by EUR 280,000 (+11.2%). MSA Amendment No. 3 required. Resubmit after amendment execution. Ref: FPR-006.",
+                        timestamp: "2026-03-26T14:22:00Z",
+                        confirmed_by: "Pace Automation Agent",
+                        api_response: "200 OK"
+                    }
+                }
             ]
         },
-
-        // STEP 11: Receive vendor confirmation email (incoming)
+        // STEP 15: Resolve ServiceNow ticket
         {
-            id:"step-11",
-            title_p:"Polling vendor email inbox for confirmation...",
-            title_s:"Vendor confirmation received - Boehringer acknowledges MSA cap issue",
-            reasoning:[
-                "Polling ferring-procurement@ferring.com inbox for reply...",
-                "Received reply from contracts@boehringer-ingelheim.com",
-                "Email subject: RE: Action Required: Purchase Requisition PR-2026-01567",
-                "Email received: 2026-03-26T10:45:22Z (23 minutes after outbound)",
-                "Extracted: Vendor acknowledges MSA cap exceedance",
-                "Extracted: Boehringer commits to filing MSA amendment within 10 business days",
-                "Extracted: Vendor will resubmit PR after amendment executed",
-                "Sentiment: Cooperative - no escalation required"
+            id: "step-15",
+            title_p: "Resolving ServiceNow ticket INC-2026-05102...",
+            title_s: "ServiceNow INC-2026-05102 resolved — full resolution notes posted",
+            reasoning: [
+                "Returned to ServiceNow ticket INC-2026-05102",
+                "Posted resolution comment: 'PR-2026-01567 validated and rejected. MSA-BI-2021-0044 annual cap exceeded by EUR 280,000. MSA Amendment No. 3 routed to Ferring Legal and CFO. PR to be resubmitted after amendment execution.'",
+                "Ticket status updated: In Progress → Resolved",
+                "Resolution code: 'Procurement — Escalated for contract amendment'",
+                "Closure confirmation received"
             ],
-            artifacts:[
-                {id:"vendor-reply-6",type:"email_draft",label:"Incoming: Vendor Confirmation from Boehringer",data:{isIncoming:true,from:"contracts@boehringer-ingelheim.com",to:"validation-team@ferring.com, robert.kingsley@ferring.com",subject:"RE: Action Required: Purchase Requisition PR-2026-01567 - MSA Maximum Value Exceeded",received:"2026-03-26T10:45:22Z",body:"Dear Ferring Procurement Team,\n\nThank you for the automated validation notification regarding PR-2026-01567.\n\nWe acknowledge that the PR total of EUR 2,780,000 exceeds the current MSA maximum contract value of EUR 2,500,000 under agreement MSA-BI-2024-0047.\n\nBoehringer Ingelheim will:\n1. Initiate an MSA amendment (Amendment 001 to MSA-BI-2024-0047) to increase the maximum contract value to EUR 3,000,000 to accommodate the full project scope\n2. Target completion of the amendment within 10 business days\n3. Resubmit the PR once the amended MSA is executed by both parties\n\nWe will copy robert.kingsley@ferring.com and sarah.whitfield@ferring.com on the amendment documentation.\n\nBest regards,\nContracts Team\nBoehringer Ingelheim Pharma GmbH & Co. KG\ncontracts@boehringer-ingelheim.com"}}
+            artifacts: [
+                {
+                    id: "snow-resolved-6",
+                    type: "json",
+                    label: "ServiceNow Ticket Resolved",
+                    data: {
+                        ticket_id: "INC-2026-05102",
+                        status_before: "In Progress",
+                        status_after: "Resolved",
+                        resolution_comment: "PR-2026-01567 rejected. MSA cap exceedance EUR 280,000. MSA Amendment No. 3 required. Routed to Legal + CFO.",
+                        resolved_by: "Pace Automation Agent",
+                        timestamp: "2026-03-26T14:23:00Z"
+                    }
+                }
             ]
         },
-
-        // STEP 12: Update SAP Ariba with vendor response
+        // STEP 16: Final audit trail
         {
-            id:"step-12",
-            title_p:"Updating PR-2026-01567 in SAP Ariba with vendor response...",
-            title_s:"SAP Ariba PR updated - vendor response logged, follow-up flag set",
-            reasoning:[
-                "Desktop agent accessed PR-2026-01567 in SAP Ariba",
-                "Added note to PR: 'Vendor (Boehringer Ingelheim) acknowledged MSA cap issue. MSA Amendment 001 initiated - target 10 business days. PR to be resubmitted post-amendment execution.'",
-                "Set follow-up flag on PR for MSA amendment tracking",
-                "Added reminder: review on 2026-04-09 (10 business days)",
-                "All vendor communication archived against PR record"
+            id: "step-16",
+            title_p: "Generating complete audit trail...",
+            title_s: "Process complete — PR-2026-01567 rejected, ServiceNow closed, MSA amendment routed",
+            reasoning: [
+                "Duration: 3m 10s (excluding HITL wait times)",
+                "Systems accessed: ServiceNow, SAP Ariba, Ferring Supplier Master (3 systems)",
+                "Attachments processed: 2 (MSA + SOW)",
+                "Validations run: 14 — 12 passed, 1 failed, 1 informational",
+                "HITL gates triggered: 2 (MSA resolution request + final rejection)",
+                "Vendor interaction: 1 round — scope reduction declined, amendment proposed",
+                "SAP Ariba final status: Rejected",
+                "ServiceNow INC-2026-05102: Resolved",
+                "MSA Amendment No. 3 draft routed to Ferring Legal + CFO"
             ],
-            artifacts:[
-                {id:"v-update-6",type:"video",label:"Desktop Agent: SAP Ariba PR Update",videoPath:"/data/sap_ariba_desktop_agent_fpr006.webm"},
-                {id:"ariba-update-6",type:"json",label:"SAP Ariba PR Update Confirmation",data:{pr_id:"PR-2026-01567",action:"ADD_NOTE",note:"Vendor (Boehringer Ingelheim) acknowledged MSA cap issue via email 2026-03-26T10:45:22Z. MSA Amendment 001 to MSA-BI-2024-0047 initiated - target completion 10 business days (by 2026-04-09). PR to be resubmitted post-amendment.",follow_up_date:"2026-04-09",follow_up_flag:true,timestamp:"2026-03-26T10:51:03Z"}}
-            ]
-        },
-
-        // STEP 13: Update ServiceNow ticket
-        {
-            id:"step-13",
-            title_p:"Updating ServiceNow ticket INC-2026-05102 with full resolution...",
-            title_s:"ServiceNow ticket resolved - complete audit trail linked",
-            reasoning:[
-                "Desktop agent logged into ServiceNow portal",
-                "Located ticket INC-2026-05102 (linked to PR-2026-01567)",
-                "Updated ticket status: Open → Resolved",
-                "Added resolution note with full validation summary",
-                "Linked SAP Ariba rejection confirmation",
-                "Linked vendor email confirmation",
-                "Set follow-up task for MSA amendment review on 2026-04-09",
-                "Ticket closed with Category: PR Validation Failure - MSA Cap Exceeded"
-            ],
-            artifacts:[
-                {id:"v-snow-6",type:"video",label:"Desktop Agent: ServiceNow Ticket Update",videoPath:"/data/servicenow_fpr006.webm"},
-                {id:"snow-update-6",type:"json",label:"ServiceNow Ticket Resolution",data:{ticket_id:"INC-2026-05102",status_before:"Open",status_after:"Resolved",category:"PR Validation Failure - MSA Cap Exceeded",resolution_summary:"PR-2026-01567 rejected: PR total EUR 2,780,000 exceeds MSA-BI-2024-0047 maximum EUR 2,500,000 by EUR 280,000 (11.2%). Rejection email sent to vendor and requester. Vendor confirmed MSA amendment in progress (target 10 business days). PR to be resubmitted post-amendment.",validations_run:14,validations_passed:11,validations_failed:1,follow_up_date:"2026-04-09",resolved_timestamp:"2026-03-26T10:55:17Z"}}
-            ]
-        },
-
-        // STEP 14: Final audit trail
-        {
-            id:"step-14",
-            title_p:"Generating complete end-to-end audit trail...",
-            title_s:"FPR-006 complete - all 11 capabilities demonstrated, full audit archived",
-            reasoning:[
-                "Complete audit trail generated covering all process steps",
-                "ServiceNow ticket → SAP Ariba retrieval → Header extraction → Line item extraction → Attachment download → MSA parsing → SOW parsing → 14-domain validation → HITL email approval → SAP Ariba rejection → Vendor reply received → SAP Ariba PR update → ServiceNow resolution",
-                "Desktop agent actions: 14 logged interactions",
-                "Documents processed: 2 (MSA + SOW)",
-                "Validations run: 14 across all domains",
-                "Human-in-the-loop: 1 email approval gate",
-                "Total processing duration: 41 minutes (including HITL wait)",
-                "All artifacts preserved for compliance and audit review"
-            ],
-            artifacts:[
-                {id:"full-audit-6",type:"json",label:"Complete End-to-End Audit Trail",data:{process_id:"FPR_006",case_name:"Full Pace Capabilities Showcase",pr_id:"PR-2026-01567",servicenow_ticket:"INC-2026-05102",supplier:"Boehringer Ingelheim Pharma GmbH & Co. KG",pr_amount:"EUR 2,780,000.00",msa_cap:"EUR 2,500,000.00",outcome:"REJECTED - MSA cap exceeded",capabilities_demonstrated:["Desktop SAP Ariba agent","PR header field extraction","Line item extraction (3 items)","Multi-document attachment download","MSA structured data extraction","SOW structured data extraction","14-domain validation suite","HITL email approval gate","SAP Ariba rejection via desktop agent","Vendor email inbox monitoring","Incoming email parsing and confirmation extraction","SAP Ariba PR update with vendor response","ServiceNow ticket resolution","Complete audit trail generation"],total_steps:14,documents_processed:2,validations_run:14,validations_passed:11,validations_failed:1,hitl_gates:1,desktop_agent_interactions:14,vendor_reply_received:true,msa_amendment_committed:true,follow_up_date:"2026-04-09",audit_complete:true}}
+            artifacts: [
+                {
+                    id: "audit-trail-6",
+                    type: "json",
+                    label: "Complete Audit Trail",
+                    data: {
+                        process_id: "FPR-006",
+                        pr_id: "PR-2026-01567",
+                        servicenow_ticket: "INC-2026-05102",
+                        started: "2026-03-26T08:45:00Z",
+                        completed: "2026-03-26T14:24:00Z",
+                        outcome: "REJECTED",
+                        systems_accessed: ["ServiceNow", "SAP Ariba", "Ferring Supplier Master"],
+                        attachments_processed: 2,
+                        validations: { run: 14, passed: 12, failed: 1 },
+                        hitl_gates: 2,
+                        vendor_rounds: 1,
+                        sap_ariba_updated: true,
+                        servicenow_resolved: true,
+                        msa_amendment_routed: true
+                    }
+                }
             ]
         }
     ];
 
-    for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const isFinal = i === steps.length - 1;
-        updateProcessLog(PROCESS_ID, { id: step.id, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), title: step.title_p, status: 'processing' });
+    for (let i = 0; i < allSteps.length; i++) {
+        const step = allSteps[i];
+        const isFinal = i === allSteps.length - 1;
+
+        updateProcessLog(PROCESS_ID, {
+            id: step.id,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            title: step.title_p,
+            status: 'processing'
+        });
         await updateProcessListStatus(PROCESS_ID, 'In Progress', step.title_p);
         await delay(2000);
 
         if (step.hitl === 'email') {
-            updateProcessLog(PROCESS_ID, { id: step.id, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), title: step.title_s, status: 'warning', reasoning: step.reasoning || [], artifacts: step.artifacts || [] });
-            await updateProcessListStatus(PROCESS_ID, 'Needs Attention', 'Draft Review: Email Pending');
+            updateProcessLog(PROCESS_ID, {
+                id: step.id,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                title: step.title_s,
+                status: 'warning',
+                reasoning: step.reasoning || [],
+                artifacts: step.artifacts || []
+            });
+            const gateLabel = step.hitl_gate === 2 ? 'HITL Gate 2: Final Rejection Email Pending' : 'HITL Gate 1: MSA Resolution Email Pending';
+            await updateProcessListStatus(PROCESS_ID, 'Needs Attention', gateLabel);
+
             const hitlAction = await waitForHITL();
+
             if (hitlAction === 'send') {
-                updateProcessLog(PROCESS_ID, { id: step.id, title: 'Email sent - proceeding with SAP Ariba rejection', status: 'success', reasoning: step.reasoning || [], artifacts: step.artifacts || [] });
-                await updateProcessListStatus(PROCESS_ID, 'In Progress', 'Email approved and sent - updating SAP Ariba');
+                const sentTitle = step.hitl_gate === 2
+                    ? 'Final rejection email sent — proceeding to SAP Ariba rejection'
+                    : 'MSA resolution email sent to Boehringer — monitoring inbox for response';
+                updateProcessLog(PROCESS_ID, {
+                    id: step.id,
+                    title: sentTitle,
+                    status: 'success',
+                    reasoning: step.reasoning || [],
+                    artifacts: step.artifacts || []
+                });
+                await updateProcessListStatus(PROCESS_ID, 'In Progress', sentTitle);
             } else {
-                updateProcessLog(PROCESS_ID, { id: step.id, title: 'Process rejected by reviewer', status: 'warning', reasoning: step.reasoning || [], artifacts: step.artifacts || [] });
-                await updateProcessListStatus(PROCESS_ID, 'Done', 'Rejected by reviewer');
+                updateProcessLog(PROCESS_ID, {
+                    id: step.id,
+                    title: 'Process halted by reviewer',
+                    status: 'warning',
+                    reasoning: step.reasoning || [],
+                    artifacts: step.artifacts || []
+                });
+                await updateProcessListStatus(PROCESS_ID, 'Done', 'Halted by reviewer at HITL gate');
                 return;
             }
             await delay(1500);
+
+            if (step.hitl_gate === 1) {
+                console.log("FPR_006: Simulating vendor response delay (3s)...");
+                await delay(3000);
+            }
+
         } else {
-            updateProcessLog(PROCESS_ID, { id: step.id, title: step.title_s, status: isFinal ? 'completed' : 'success', reasoning: step.reasoning || [], artifacts: step.artifacts || [] });
+            updateProcessLog(PROCESS_ID, {
+                id: step.id,
+                title: step.title_s,
+                status: isFinal ? 'completed' : 'success',
+                reasoning: step.reasoning || [],
+                artifacts: step.artifacts || []
+            });
             await updateProcessListStatus(PROCESS_ID, isFinal ? 'Done' : 'In Progress', step.title_s);
             await delay(1500);
         }
     }
+
     console.log(`${PROCESS_ID} Complete: ${CASE_NAME}`);
 })();
